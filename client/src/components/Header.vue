@@ -1,8 +1,18 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
+const emit = defineEmits(['open-newpost', 'open-usersign', 'open-profile']);
+
 const username = computed(() => localStorage.getItem('username'));
 const userImg = computed(() => localStorage.getItem('userImg'));
+
+const handleProfileClick = () => {
+    if (username.value) {
+        emit('open-profile');
+    } else {
+        emit('open-usersign');
+    }
+};
 </script>
 
 <template>
@@ -38,7 +48,7 @@ const userImg = computed(() => localStorage.getItem('userImg'));
                 <path fill="currentColor" d="m226.83 221.17l-52.7-52.7a84.1 84.1 0 1 0-5.66 5.66l52.7 52.7a4 4 0 0 0 5.66-5.66M36 112a76 76 0 1 1 76 76a76.08 76.08 0 0 1-76-76" />
             </svg>
         </div>
-        <div class="profile" @click="$emit('open-usersign')">
+        <div class="profile" @click="handleProfileClick">
             <img :src="userImg ?? 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png'" alt="profile" />
             <h3>{{ username ? username : 'Login/Sign Up' }}</h3>
         </div>
@@ -57,6 +67,7 @@ const userImg = computed(() => localStorage.getItem('userImg'));
         top: 0;
         left: 0;
         width: 100%;
+        font-size: 16px;
     }
     button {
         display: flex;
@@ -69,6 +80,8 @@ const userImg = computed(() => localStorage.getItem('userImg'));
         padding: 10px;
         border-radius: 10px;
         transition: .2s ease-in-out;
+        font-weight: bold;
+        font-size: 16px;
     }
     button:hover {
         background-color: #f0f0f0;

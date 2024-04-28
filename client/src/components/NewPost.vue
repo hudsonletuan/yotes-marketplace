@@ -6,8 +6,10 @@ const emit = defineEmits(['close-newpost', 'post-created']);
 const closeNewPost = () => {
     emit('close-newpost');
 };
+const username = computed(() => localStorage.getItem('username'));
+const userImg = computed(() => localStorage.getItem('userImg'));
 
-const selectedMedia = ref([]);
+const selectedMedia = ref<File[]>([]);
 const objectURLs = ref<string[]>([]);
 const hoverIndex = ref(-1);
 const caption = ref('');
@@ -16,9 +18,9 @@ const price = ref<number | null>(null);
 const showStatus = ref(false);
 const selectedStatus = ref('Available');
 
-const handleMediaChange = (event) => {
+const handleMediaChange = (event: Event) => {
     const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-    const newFiles = Array.from(event.target.files);
+    const newFiles = Array.from((event.target as HTMLInputElement).files as FileList);
     const validFiles = newFiles.filter((file) => file.size <= MAX_FILE_SIZE);
 
     selectedMedia.value = [...selectedMedia.value, ...validFiles];
@@ -34,9 +36,9 @@ const handleMediaChange = (event) => {
     }
 };
 
-const getObjectURL = (index) => objectURLs.value[index];
+const getObjectURL = (index: number) => objectURLs.value[index];
 
-const removeMedia = (index) => {
+const removeMedia = (index: number) => {
     selectedMedia.value.splice(index, 1);
     const objectURL = objectURLs.value.splice(index, 1)[0];
     URL.revokeObjectURL(objectURL);
@@ -44,14 +46,15 @@ const removeMedia = (index) => {
 
 const mediaItems = ref<HTMLDivElement | null>(null);
 
-const scrollMedia = (direction) => {
-  if (mediaItems.value) {
-    const scrollAmount = mediaItems.value.scrollLeft + direction * 220;
-    mediaItems.value.scrollTo({
-      left: scrollAmount,
-      behavior: 'smooth',
-    });
-  }
+const scrollMedia = (direction: number) => {
+    console.log(mediaItems.value);
+    if (mediaItems.value) {
+        const scrollAmount = mediaItems.value.scrollLeft + direction * 220;
+        mediaItems.value.scrollTo({
+            left: scrollAmount,
+            behavior: 'smooth',
+        });
+    }
 };
 
 const selectStatus = (status: string) => {
@@ -87,7 +90,8 @@ const handleKeyPress = (event: KeyboardEvent) => {
 
 const postNewPost = async () => {
     const formData = new FormData();
-    formData.append('username', 'testuser');
+    formData.append('username', username.value ? username.value : 'Anonymous');
+    formData.append('userImg', userImg.value ? userImg.value : "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png");
     formData.append('caption', caption.value);
     formData.append('status', selectedStatus.value);
     formData.append('price', price.value?.toString() || '');
@@ -104,6 +108,7 @@ const postNewPost = async () => {
         });
         alert('Post created successfully!');
         emit('post-created');
+        window.location.reload();
     } catch (error) {
         console.error(error);
     }
@@ -117,11 +122,11 @@ const postNewPost = async () => {
                 <textarea placeholder="Write a caption..." v-model="caption" />
             </div>
             <div class="media-preview">
-                <button class="nav-btn" @click="scrollMedia(-1)" :disabled="!selectedMedia.length || mediaItems.value?.scrollLeft <= 0">&#10094;</button>
+                <button class="nav-btn" @click="scrollMedia(-1)" :disabled="!selectedMedia.length || ($refs.mediaItems as HTMLDivElement).scrollLeft <= 0">&#10094;</button>
                 <div class="media-items" ref="mediaItems">
                     <div v-for="(file, index) in selectedMedia" :key="`${index}-${file.lastModified}`" class="media-item-wrapper" @mouseover="hoverIndex = index" @mouseleave="hoverIndex = -1">
                         <div class="media-item">
-                            <img v-if="file.type.startsWith('image/')" :src="getObjectURL(index)" alt="Preview" />
+                            <img v-if="(file as File).type.startsWith('image/')" :src="getObjectURL(index)" alt="Preview" />
                             <video v-else-if="file.type.startsWith('video/')" controls>
                                 <source :src="getObjectURL(index)" :type="file.type">
                                 Your browser does not support the video tag.
@@ -130,13 +135,13 @@ const postNewPost = async () => {
                         <button class="remove-btn" @click="removeMedia(index)" :class="hoverIndex === index ? 'visible' : 'hidden'">&#10006;</button>
                     </div>
                 </div>
-                <button class="nav-btn" @click="scrollMedia(1)" :disabled="!selectedMedia.length || mediaItems.value?.scrollLeft >= mediaItems.value?.scrollWidth - mediaItems.value?.clientWidth">&#10095;</button>
+                <button class="nav-btn" @click="scrollMedia(1)" :disabled="!selectedMedia.length || ($refs.mediaItems as HTMLElement).scrollLeft >= ($refs.mediaItems as HTMLElement).scrollWidth - ($refs.mediaItems as HTMLElement).clientWidth">&#10095;</button>
             </div>
             <div class="buttons">
                 <div class="sub-buttons-add">
                     <label class="btn label-add-media" for="media-upload">Add Media</label>
-                    <input type="file" accept="image/*, video/*" id="media-upload" multiple="multiple" style="display: none" @change="handleMediaChange" />
-                    <input class="add-location" type="text" placeholder="Add Locaiton" v-model="location" />
+                    <input type="file" accept="image/*, video/*" id="media-upload" multiple style="display: none" @change="handleMediaChange" />
+                    <input class="add-location" type="text" placeholder="Add Location" v-model="location" />
                     <div class="dropdown-container">
                         <button class="btn btn-status" @click="showStatus = !showStatus"><span v-if="selectedStatus">{{ selectedStatus }}</span></button>
                         <ul v-if="showStatus" class="dropdown">
@@ -190,16 +195,19 @@ const postNewPost = async () => {
     margin-top: 10px;
 }
 .media-preview img, .media-preview video {
-    width: 200px;
+    height: 200px;
     border-radius: 10px;
-    object-fit: cover;
+    object-fit: contain;
 }
-.media-item-wrapper {
+.media-item {
     position: relative;
     display: inline-block;
     overflow: hidden;
     border-radius: 10px;
-    min-width: 220px;
+    min-height: 200px;
+}
+.media-item-wrapper {
+    position: relative;
 }
 .media-item-wrapper:hover::before {
     opacity: 1;
@@ -207,7 +215,7 @@ const postNewPost = async () => {
 .remove-btn {
     position: absolute;
     top: 5px;
-    right: 25px;
+    right: 5px;
     border: none;
     color: white;
     cursor: pointer;
@@ -237,10 +245,11 @@ const postNewPost = async () => {
     visibility: visible;
     opacity: 1;
     transition: opacity 0.3s ease, visibility 0.3s ease;
+    background-color: rgba(82, 82, 82, 0.5);
 }
 .nav-btn {
     position: absolute;
-    top: 50%;
+    top: 45%;
     transform: translateY(-50%);
     background-color: transparent;
     border: none;
@@ -250,9 +259,10 @@ const postNewPost = async () => {
     visibility: hidden;
     opacity: 0;
     transition: opacity 0.3s ease, visibility 0.3s ease, background-color 0.3s ease;
+    color: black;
 }
 .nav-btn:hover {
-    background-color: rgba(0, 0, 0, 0.5);
+    background-color: rgba(190, 190, 190, 0.5) !important;
     transition: background-color 0.3s ease !important;
 }
 .nav-btn:first-child {
@@ -266,9 +276,21 @@ const postNewPost = async () => {
     display: flex;
     overflow-x: auto;
     scroll-behavior: smooth;
+    gap: 10px;
 }
-.sub-buttons-add {
+.sub-buttons-add, .sub-buttons-finish {
     display: flex;
+    align-items: center;
+}
+.sub-buttons-finish button {
+    font-weight: bold;
+    transition: .2s ease-in-out;
+}
+.sub-buttons-add label, .btn-status span, .price {
+    font-weight: bold;
+}
+.price:placeholder-shown {
+    font-weight: normal;
 }
 .dropdown {
     position: absolute;
@@ -289,7 +311,7 @@ const postNewPost = async () => {
     background-color: #bdbdbd;
 }
 .add-location {
-    width: 100px;
+    width: 120px;
     padding: 8px;
     border-radius: 5px;
     border: 2px solid #6c6c6c;
@@ -314,6 +336,7 @@ const postNewPost = async () => {
     cursor: pointer;
     margin: 0 5px;
     font-size: 14px;
+    transition: .2s ease-in-out;
 }
 .btn:hover {
     transition: .2s ease-in-out;
@@ -321,11 +344,17 @@ const postNewPost = async () => {
 .label-add-media {
     background-color: #28a745;
 }
+.label-add-media:hover {
+    background-color: #218639;
+}
 .btn-add-location {
     background-color: #ea8b1e;
 }
 .btn-status {
     background-color: #ff0099;
+}
+.btn-status:hover {
+    background-color: #ba0070;
 }
 .btn-close {
     background-color: red;

@@ -8,6 +8,7 @@ import axios from 'axios';
 import bcrypt from 'bcrypt';
 import multer from 'multer';
 import jwt from 'jsonwebtoken';
+import AWS from 'aws-sdk';
 import cookieParser from 'cookie-parser';
 import Post from '../models/postModel';
 import User from '../models/userModel';
@@ -40,6 +41,11 @@ app.get('/mongo', (req, res) => {
     };
 });
 
+const s3 = new AWS.S3({
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+});
+
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
@@ -48,14 +54,24 @@ app.use(bodyParser.urlencoded({ extended: true }));
 
 app.post('/newpost', upload.array('media'), async (req, res) => {
     try {
-        const { username, caption, price, status, location } = req.body;
-        const media = (req.files as Express.Multer.File[]).map(file => ({
-            media: file.buffer.toString('base64')
-        }));
-        const newPost = new Post({ username, caption, price, status, location, uploaded: media });
+        const { username, userImg, caption, price, status, location } = req.body;
+        const mediaPromises = (req.files as Express.Multer.File[]).map(async (file) => {
+            const params = {
+                Bucket: 'yotes-marketplace',
+                Key: `${Date.now()}-${file.originalname}`,
+                Body: file.buffer,
+                ContentType: file.mimetype,
+                ACL: 'public-read',
+            };
+            const data = await s3.upload(params).promise();
+            return { media: data.Location };
+        });
+        const media = await Promise.all(mediaPromises);
+        const newPost = new Post({ username, userImg, caption, price, status, location, uploaded: media });
         await newPost.save();
         res.status(201).json({ message: 'Post created successfully', post: newPost });
     } catch (error) {
+        console.log(error);
         res.status(500).json({ message: 'Post creation failed', error });
     }
 });
@@ -105,6 +121,18 @@ app.post('/signup', async (req, res) => {
         res.status(201).json({ message: 'Signup successful', user: newUser });
     } catch (error) {
         res.status(500).json({ message: 'Signup failed', error });
+    }
+});
+
+app.get('/posts', async (req, res) => {
+    const limit = parseInt(req.query.limit as string) || 3;
+    const skip = parseInt(req.query.skip as string) || 0;
+
+    try {
+        const posts = await Post.find({}).sort({ createdAt: -1 }).skip(skip).limit(limit);
+        res.status(200).json({ posts });
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching posts', error });
     }
 });
 

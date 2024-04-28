@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import axios from 'axios';
+import { axiosConfig } from '@/config/axios';
 
 const emit = defineEmits(['close-usersign']);
 
@@ -22,14 +23,14 @@ const loginUser = async () => {
     }
     formData.append('password', passwordLogin.value);
     try {
-        const response = await axios.post('/api/login', formData, {
+        const response = await axios.post('/login', formData, {
+            ...axiosConfig,
             headers: {
                 'Content-Type': 'application/json',
             },
             withCredentials: true,
         });
         if (response.status === 200) {
-            alert('Login successful');
             localStorage.setItem('username', response.data.user.username);
             localStorage.setItem('userImg', response.data.user.img);
             location.reload();
@@ -56,7 +57,8 @@ const signupUser = async () => {
     formData.append('password', rePasswordSignUp.value);
 
     try {
-        const response = await axios.post('/api/signup', formData, {
+        const response = await axios.post('/signup', formData, {
+            ...axiosConfig,
             headers: {
                 'Content-Type': 'application/json',
             },
