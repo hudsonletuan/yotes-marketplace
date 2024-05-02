@@ -2,21 +2,18 @@
   "name": "server",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
   "scripts": {
-    "start": "node node_modules/nodemon/bin/nodemon.js src/app.ts --exec",
-    "lint": "node node_modules/.bin/eslint **.*.js"
+    "start": "ts-node src/app.ts",
+    "dev": "nodemon -L",
+    "build": "webpack"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@types/bcrypt": "^5.0.2",
-    "@types/cookie-parser": "^1.4.7",
-    "@types/jsonwebtoken": "^9.0.6",
-    "@types/multer": "^1.4.11",
     "aws-sdk": "^2.1607.0",
     "bcrypt": "^5.1.1",
+    "bcryptjs": "^2.4.3",
     "body-parse": "^0.1.0",
     "brcypt": "^1.0.1",
     "cookie-parser": "^1.4.6",
@@ -25,16 +22,28 @@
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.3.2",
-    "multer": "^1.4.5-lts.1"
+    "multer": "^1.4.5-lts.1",
+    "nodemailer": "^6.9.13"
   },
   "devDependencies": {
     "@types/axios": "^0.14.0",
+    "@types/bcrypt": "^5.0.2",
     "@types/body-parser": "^1.19.5",
+    "@types/cookie-parser": "^1.4.7",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/mongoose": "^5.11.97",
+    "@types/multer": "^1.4.11",
     "@types/node": "^20.12.7",
+    "@types/nodemailer": "^6.4.14",
+    "@types/webpack": "^5.28.5",
     "eslint": "^9.0.0",
     "nodemon": "^3.1.0",
-    "ts-node": "^10.9.2"
+    "terser-webpack-plugin": "^5.3.10",
+    "ts-loader": "^9.5.1",
+    "ts-node": "^10.9.2",
+    "webpack": "^5.91.0",
+    "webpack-cli": "^5.1.4"
   }
 }

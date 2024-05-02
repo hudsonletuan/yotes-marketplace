@@ -14,7 +14,7 @@ const handleLogout = () => {
     <div class="profile-container">
         <div class="card left-card">
             <div class="profile-image">
-                <img :src="userImg ?? 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png'" alt="profile" />
+                <img :src="userImg ?? 'https://yotes-marketplace.s3.us-east-2.amazonaws.com/yotes-logo.png'" alt="profile" />
             </div>
             <div class="buttons-container">
                 <button>Edit Profile</button>

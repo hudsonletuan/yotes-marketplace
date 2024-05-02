@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import axios from 'axios';
-import { axiosConfig } from '@/config/axios';
 
-const emit = defineEmits(['close-usersign']);
+const emit = defineEmits(['close-usersign', 'open-otpverify']);
 
 const usernameEmail = ref('');
 const passwordLogin = ref('');
@@ -11,7 +10,7 @@ const username = ref('');
 const email = ref('');
 const passwordSignUp = ref('');
 const rePasswordSignUp = ref('');
-const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const emailRegex = /^[^\s@]+@(?:collegeofidaho\.edu|[a-z]+\.collegeofidaho\.edu)$/i;
 
 const loginUser = async () => {
     const formData = new FormData();
@@ -23,8 +22,7 @@ const loginUser = async () => {
     }
     formData.append('password', passwordLogin.value);
     try {
-        const response = await axios.post('/login', formData, {
-            ...axiosConfig,
+        const response = await axios.post('/api/login', formData, {
             headers: {
                 'Content-Type': 'application/json',
             },
@@ -33,6 +31,7 @@ const loginUser = async () => {
         if (response.status === 200) {
             localStorage.setItem('username', response.data.user.username);
             localStorage.setItem('userImg', response.data.user.img);
+            localStorage.setItem('userId', response.data.user.id);
             location.reload();
         } else {
             alert(response.data.message);
@@ -46,7 +45,24 @@ const loginUser = async () => {
         }
     }
 };
-const signupUser = async () => {
+
+const requestOTP = async () => {
+    if (username.value.length < 6 || username.value.length > 12) {
+        alert('Username must be at least 6 characters and a maximum of 12 characters');
+        return;
+    }
+
+    const letters = username.value.match(/[a-zA-Z]/g);
+    if (!letters || letters.length < 4) {
+        alert('Username must contain at least 4 letters');
+        return;
+    }
+    
+    if (!emailRegex.test(email.value)) {
+        alert('You must use a College of Idaho email address to sign up.');
+        return;
+    }
+
     const formData = new FormData();
     formData.append('username', username.value);
     formData.append('email', email.value);
@@ -55,17 +71,15 @@ const signupUser = async () => {
         return;
     }
     formData.append('password', rePasswordSignUp.value);
-
     try {
-        const response = await axios.post('/signup', formData, {
-            ...axiosConfig,
+        const response = await axios.post('/api/signup', formData, {
             headers: {
                 'Content-Type': 'application/json',
             },
             withCredentials: true,
         });
-        if (response.status === 201) {
-            alert('Sign up successful');
+        if (response.status === 200) {
+            emit('open-otpverify', { username: response.data.newUserInfo.username, email: response.data.newUserInfo.email, password: response.data.newUserInfo.password });
         } else {
             alert(response.data.message);
         }
@@ -73,12 +87,11 @@ const signupUser = async () => {
         if ((error as any).response.status === 400) {
             alert((error as any).response.data.message);
         } else {
-            alert('Sign up failed');
-            console.error('Sign up failed:', error);
+            alert('OTP request failed');
+            console.error('OTP request failed:', error);
         }
     }
 };
-
 </script>
 
 <template>
@@ -102,7 +115,7 @@ const signupUser = async () => {
                             <input type="email" name="email" placeholder="Email" autocomplete="off" role="presentation" v-model="email" required>
                             <input type="password" name="pswd" placeholder="Password" v-model="passwordSignUp" required>
                             <input type="password" name="re-pswd" placeholder="Re-enter Password" v-model="rePasswordSignUp" required>
-                            <button @click="signupUser">Sign Up</button>
+                            <button @click="requestOTP">Sign Up</button>
                         </div>
                     </div>
             </div>

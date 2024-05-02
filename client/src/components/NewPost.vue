@@ -8,6 +8,7 @@ const closeNewPost = () => {
 };
 const username = computed(() => localStorage.getItem('username'));
 const userImg = computed(() => localStorage.getItem('userImg'));
+const userId = computed(() => localStorage.getItem('userId'));
 
 const selectedMedia = ref<File[]>([]);
 const objectURLs = ref<string[]>([]);
@@ -47,7 +48,6 @@ const removeMedia = (index: number) => {
 const mediaItems = ref<HTMLDivElement | null>(null);
 
 const scrollMedia = (direction: number) => {
-    console.log(mediaItems.value);
     if (mediaItems.value) {
         const scrollAmount = mediaItems.value.scrollLeft + direction * 220;
         mediaItems.value.scrollTo({
@@ -70,6 +70,8 @@ const formattedPrice = computed({
         const numberValue = parseFloat(value.replace(/[^0-9.-]+/g, ''));
         if (!isNaN(numberValue)) {
             price.value = numberValue;
+        } else {
+            price.value = null;
         }
     },
 });
@@ -90,8 +92,10 @@ const handleKeyPress = (event: KeyboardEvent) => {
 
 const postNewPost = async () => {
     const formData = new FormData();
+    console.log(userId.value);
+    formData.append('userId', userId.value ? userId.value : '');
     formData.append('username', username.value ? username.value : 'Anonymous');
-    formData.append('userImg', userImg.value ? userImg.value : "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png");
+    formData.append('userImg', userImg.value ? userImg.value : "https://yotes-marketplace.s3.us-east-2.amazonaws.com/yotes-logo.png");
     formData.append('caption', caption.value);
     formData.append('status', selectedStatus.value);
     formData.append('price', price.value?.toString() || '');
@@ -148,13 +152,19 @@ const postNewPost = async () => {
                             <li @click="selectStatus('Available')">Available</li>
                             <li @click="selectStatus('Sold')">Sold</li>
                             <li @click="selectStatus('Not Available')">Not Available</li>
+                            <li @click="selectStatus('Looking For...')">Looking For...</li>
                         </ul>
                     </div>
                     <input class="price" type="text" inputmode="decimal" v-model="formattedPrice" @keypress="handleKeyPress" placeholder="Price" />
                 </div>
                 <div class="sub-buttons-finish">
                     <button class="btn btn-close" @click="closeNewPost">Discard</button>
-                    <button class="btn btn-post" @click="postNewPost">Post</button>
+                    <div v-if="caption.trim().length > 0">
+                        <button class="btn btn-post" @click="postNewPost">Post</button>
+                    </div>
+                    <div v-else>
+                        <button class="btn btn-post" style="background-color: #5dabff;" disabled>Post</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -359,8 +369,14 @@ const postNewPost = async () => {
 .btn-close {
     background-color: red;
 }
+.btn-close:hover {
+    background-color: #cd0000;
+}
 .btn-post {
     background-color: #007bff;
+}
+.btn-post:hover {
+    background-color: #0066d2;
 }
 
 </style>
