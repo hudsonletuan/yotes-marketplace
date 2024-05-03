@@ -2,7 +2,7 @@
 import { ref } from 'vue';
 import axios from 'axios';
 
-const emit = defineEmits(['close-usersign', 'open-otpverify']);
+const emit = defineEmits(['close-usersign', 'open-otpverify', 'open-otprecover']);
 
 const usernameEmail = ref('');
 const passwordLogin = ref('');
@@ -13,6 +13,10 @@ const rePasswordSignUp = ref('');
 const emailRegex = /^[^\s@]+@(?:collegeofidaho\.edu|[a-z]+\.collegeofidaho\.edu)$/i;
 
 const loginUser = async () => {
+    if (!usernameEmail.value || !passwordLogin.value) {
+        alert('Please fill in all fields');
+        return;
+    }
     const formData = new FormData();
     const { value: usernameEmailValue } = usernameEmail;
     if (emailRegex.test(usernameEmailValue)) {
@@ -32,6 +36,8 @@ const loginUser = async () => {
             localStorage.setItem('username', response.data.user.username);
             localStorage.setItem('userImg', response.data.user.img);
             localStorage.setItem('userId', response.data.user.id);
+            localStorage.setItem('userEmail', response.data.user.email);
+            localStorage.setItem('lastActive', Date.now().toString());
             location.reload();
         } else {
             alert(response.data.message);
@@ -47,6 +53,10 @@ const loginUser = async () => {
 };
 
 const requestOTP = async () => {
+    if (!username.value || !email.value || !passwordSignUp.value || !rePasswordSignUp.value) {
+        alert('Please fill in all fields');
+        return;
+    }
     if (username.value.length < 6 || username.value.length > 12) {
         alert('Username must be at least 6 characters and a maximum of 12 characters');
         return;
@@ -68,6 +78,10 @@ const requestOTP = async () => {
     formData.append('email', email.value);
     if (passwordSignUp.value !== rePasswordSignUp.value) {
         alert('Passwords do not match');
+        return;
+    }
+    if (rePasswordSignUp.value.length < 6) {
+        alert('Password must be at least 6 characters');
         return;
     }
     formData.append('password', rePasswordSignUp.value);
@@ -106,6 +120,7 @@ const requestOTP = async () => {
                             <input type="text" name="usernameemail" placeholder="Username/Email" autocomplete="off" role="presentation" v-model="usernameEmail" required>
                             <input type="password" name="pswd" placeholder="Password" v-model="passwordLogin" required>
                             <button @click="loginUser">Login</button>
+                            <button class="fgpass-btn" @click="$emit('open-otprecover')">Forgot Password?</button>
                         </div>
                     </div>
                     <div class="signup">
@@ -197,6 +212,19 @@ button{
 }
 button:hover{
 	background: #54348f;
+}
+.fgpass-btn {
+    display: flex;
+    justify-content: center;
+    color: #fff;
+    font-size: 16px;
+    text-align: center;
+    background-color: transparent;
+    border: none;
+}
+.fgpass-btn:hover {
+    font-size: 18px;
+    background-color: transparent;
 }
 .signup{
 	height: 460px;

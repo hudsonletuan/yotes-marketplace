@@ -28,8 +28,9 @@ const connectDB = async () => {
 
 connectDB();
 
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json({ limit: '5mb' }));
+app.use(bodyParser.urlencoded({ limit: '5mb', extended: true }));
+app.use(express.json());
 app.use('/api', apiRouter);
 
 app.get('*', (req, res) => {

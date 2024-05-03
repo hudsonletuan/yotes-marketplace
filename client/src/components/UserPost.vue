@@ -71,7 +71,7 @@ const scrollMedia = (postId: string, direction: number) => {
     }
 };
 
-const limit = 4;
+const limit = 10;
 const skip = ref(0);
 const isFetching = ref(false);
 const isLoading = ref(false);
@@ -91,8 +91,8 @@ const fetchPosts = async () => {
             return {
                 ...latestVersion,
                 _id: post._id,
-                userImg: latestVersion.userImg,
-                username: latestVersion.username,
+                userImg: post.userImg,
+                username: post.username,
                 userId: post.userId,
                 createdAt: latestVersion.createdAt,
             };
@@ -167,7 +167,7 @@ onBeforeUnmount(() => {
                         <img :src="post.userImg ? post.userImg : 'https://yotes-marketplace.s3.us-east-2.amazonaws.com/yotes-logo.png'" alt="profile" />
                         <div class="post-user-info">
                             <h3 style="color: white;">{{ post.username }}</h3>
-                            <h5>{{ postModifiedDate(post) }}</h5>
+                            <h5 style="color: #D5D5D5">{{ postModifiedDate(post) }}</h5>
                         </div>
                     </div>
                     <div class="post-options">
@@ -240,6 +240,8 @@ onBeforeUnmount(() => {
     display: flex;
     justify-content: flex-end;
     align-items: flex-start;
+    background-color: #212529;
+    border-radius: 30px;
 }
 .post-container {
     overflow: auto;
@@ -249,12 +251,7 @@ onBeforeUnmount(() => {
     height: 85vh;
     width: 100vh;
     position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background-color: #212529;
     padding: 30px 0;
-    border-radius: 30px;
 }
 .close-btn {
     position: absolute;
@@ -322,6 +319,8 @@ onBeforeUnmount(() => {
 }
 .post-user img {
     width: 40px;
+    height: 40px;
+    object-fit: cover;
     border-radius: 50%;
 }
 .post-user h5, .post-user p {

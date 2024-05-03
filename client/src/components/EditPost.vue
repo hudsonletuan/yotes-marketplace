@@ -37,7 +37,11 @@ const existingMediaUrls: string[] = props.post.uploaded.map((media: { media: str
 const handleMediaChange = (event: Event) => {
     const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
     const newFiles = Array.from((event.target as HTMLInputElement).files as FileList);
-    const validFiles = newFiles.filter((file) => file.size <= MAX_FILE_SIZE);
+    const validFiles = newFiles.filter((file) => {
+        const isValidType = (file.type.startsWith('image/') && ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg+xml', 'webp'].includes(file.type.split('/')[1])) || 
+        (file.type.startsWith('video/') && ['mp4', 'webm', 'ogg', 'avi', 'mov', 'flv'].includes(file.type.split('/')[1]));
+        return isValidType && file.size <= MAX_FILE_SIZE;
+    });
 
     selectedMedia.value = [...selectedMedia.value, ...validFiles];
 
@@ -135,7 +139,8 @@ const hasChanges = computed(() => {
         price.value !== props.post.price ||
         selectedStatus.value !== props.post.status ||
         JSON.stringify(existingMediaUrls) !== JSON.stringify(props.post.uploaded.map((media) => media.media)) ||
-        selectedMedia.value.length > 0
+        selectedMedia.value.length > 0 ||
+        existingMedia.value.length !== props.post.uploaded.length
     );
 });
 
@@ -200,6 +205,7 @@ function getMimeType(url: string): string {
         gif: 'image/gif',
         bmp: 'image/bmp',
         svg: 'image/svg+xml',
+        webp: 'image/webp',
         mp4: 'video/mp4',
         webm: 'video/webm',
         ogg: 'video/ogg',
@@ -211,7 +217,7 @@ function getMimeType(url: string): string {
 }
 
 const isImage = (fileUrl: string): boolean => {
-    const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg'];
+    const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg+xml', 'webp'];
     const fileExtension = fileUrl.split('.').pop()?.toLowerCase();
     return imageExtensions.includes(fileExtension || '');
 };

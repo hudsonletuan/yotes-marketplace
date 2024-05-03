@@ -6,7 +6,14 @@ import BiTrash from './svgs/BiTrash.vue';
 import BiFlag from './svgs/BiFlag.vue';
 import Send from './svgs/Send.vue';
 
-const emit = defineEmits(['open-editpost', 'open-userpost']);
+const emit = defineEmits(['open-editpost', 'open-userpost', 'close-searchpost']);
+const closeSearchPost = () => {
+    emit('close-searchpost');
+};
+
+const props = defineProps<{
+    searchInputValue: string;
+}>();
 
 const currentUser = localStorage.getItem('username');
 
@@ -64,7 +71,7 @@ const scrollMedia = (postId: string, direction: number) => {
     }
 };
 
-const limit = 10;
+const limit = 10000000000;
 const skip = ref(0);
 const isFetching = ref(false);
 const isLoading = ref(false);
@@ -148,89 +155,191 @@ onBeforeUnmount(() => {
         postContainer.removeEventListener('scroll', handleScroll);
     }
 });
+
+
+const searchQuery = ref('');
+const filteredPosts = computed(() => {
+    const queryWords = searchQuery.value.toLowerCase().split(/\s+/);
+    queryWords.push(props.searchInputValue.toLowerCase());
+    return posts.value.filter((post) => {
+        const usernameMatch = queryWords.every((word) => post.username.toLowerCase().includes(word));
+        const captionMatch = queryWords.every((word) => post.caption.toLowerCase().includes(word));
+        const locationMatch = post.location ? queryWords.every((word) => post.location.toLowerCase().includes(word)) : false;
+        const statusMatch = queryWords.every((word) => post.status.toLowerCase().includes(word));
+        const priceMatch = post.price ? queryWords.every((word) => String(post.price).includes(word)) : false;
+        const dateTimeMatch = queryWords.every((word) => formatDate(post.createdAt).includes(word));
+
+        return (
+        usernameMatch ||
+        captionMatch ||
+        locationMatch ||
+        statusMatch ||
+        priceMatch ||
+        dateTimeMatch
+        );
+    });
+});
+
 </script>
 
 <template>
-    <div class="post-container" ref="postContainer">
-        <div class="post" v-for="post in posts" :key="post._id" :id="`post-${post._id}`">
-            <div class="post-head">
-                <div class="post-user">
-                    <img :src="post.userImg ? post.userImg : 'https://yotes-marketplace.s3.us-east-2.amazonaws.com/yotes-logo.png'" alt="profile" />
-                    <div class="post-user-info">
-                        <h3 style="color: white;" @click="$emit('open-userpost', post.username)">{{ post.username }}</h3>
-                        <h5 style="color: #D5D5D5;">{{ postModifiedDate(post) }}</h5>
-                    </div>
-                </div>
-                <div class="post-options">
-                    <button class="btn-post-option btn-post-edit" v-if="post.username === currentUser" title="Edit" @click="$emit('open-editpost', post)">
-                        <BiPencil />
-                    </button>
-                    <button class="btn-post-option btn-post-delete" v-if="post.username === currentUser" title="Delete" @click="confirmDelete(post._id)">
-                        <BiTrash />
-                    </button>
-                    <button class="btn-post-option btn-post-report" title="Report">
-                        <BiFlag />
-                    </button>
-                </div>
+    <div class="wrapper">
+        <div class="searchpost-header">
+            <div class="search-bar">
+                <input type="search" placeholder="Search ..." id="searchInput" v-model="searchQuery">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+                    <path fill="currentColor" d="m226.83 221.17l-52.7-52.7a84.1 84.1 0 1 0-5.66 5.66l52.7 52.7a4 4 0 0 0 5.66-5.66M36 112a76 76 0 1 1 76 76a76.08 76.08 0 0 1-76-76" />
+                </svg>
             </div>
-            <div class="post-caption">
-                <p v-if="!isCaptionLong(post) || showFullCaption.get(post._id)">
-                    {{ post.caption }}
-                    <button v-if="isCaptionLong(post)" @click="toggleCaption(post)">Show less...</button>
-                </p>
-                <p v-else>
-                    {{ post.caption.substring(0, 300).trim() }}...
-                    <button @click="toggleCaption(post)">Show more...</button>
-                </p>
-            </div>
-            <div class="media-post">
-                <button class="post-nav-btn" @click="scrollMedia(post._id, -1)">&#10094;</button>
-                <div class="media-post-items" :ref="el => mediaItems.set(post._id, el as HTMLElement)">
-                    <div v-for="(file, index) in post.uploaded" :key="index" class="media-post-item-wrapper">
-                        <div class="media-post-item">
-                            <img v-if="isImage(file.media)" :src="file.media" alt="Post media" />
-                            <video v-else-if="isVideo(file.media)" :src="file.media" controls></video>
+            <div class="close-btn" @click="closeSearchPost">&#10006;</div>
+        </div>
+        <div class="post-container" ref="postContainer">
+            <div class="post" v-for="post in filteredPosts" :key="post._id" :id="`post-${post._id}`">
+                <div class="post-head">
+                    <div class="post-user">
+                        <img :src="post.userImg ? post.userImg : 'https://yotes-marketplace.s3.us-east-2.amazonaws.com/yotes-logo.png'" alt="profile" />
+                        <div class="post-user-info">
+                            <h3 style="color: white;" @click="$emit('open-userpost', post.username)">{{ post.username }}</h3>
+                            <h5 style="color: #D5D5D5;">{{ postModifiedDate(post) }}</h5>
                         </div>
                     </div>
+                    <div class="post-options">
+                        <button class="btn-post-option btn-post-edit" v-if="post.username === currentUser" title="Edit" @click="$emit('open-editpost', post)">
+                            <BiPencil />
+                        </button>
+                        <button class="btn-post-option btn-post-delete" v-if="post.username === currentUser" title="Delete" @click="confirmDelete(post._id)">
+                            <BiTrash />
+                        </button>
+                        <button class="btn-post-option btn-post-report" title="Report">
+                            <BiFlag />
+                        </button>
+                    </div>
                 </div>
-                <button class="post-nav-btn" @click="scrollMedia(post._id, 1)">&#10095;</button>
-            </div>
-            <div class="bottom-bar">
-                <div class="post-details">
-                    <p class="post-detail-price">{{ post.price ? '$' + post.price : 'Free' }}</p>
-                    <p class="post-detail-status" :class="{
-                        'available': post.status === 'Available',
-                        'sold': post.status === 'Sold',
-                        'not-available': post.status === 'Not Available',
-                        'looking-for': post.status === 'Looking For...'
-                    }">{{ post.status }}</p>
-                    <p class="post-detail-location" v-if="post.location">at {{ post.location }}</p>
-                </div>
-                <div class="send-message" v-if="post.username !== currentUser">
-                    <p class="btn-message">Send Message 
-                        <Send />
+                <div class="post-caption">
+                    <p v-if="!isCaptionLong(post) || showFullCaption.get(post._id)">
+                        {{ post.caption }}
+                        <button v-if="isCaptionLong(post)" @click="toggleCaption(post)">Show less...</button>
+                    </p>
+                    <p v-else>
+                        {{ post.caption.substring(0, 300).trim() }}...
+                        <button @click="toggleCaption(post)">Show more...</button>
                     </p>
                 </div>
+                <div class="media-post">
+                    <button class="post-nav-btn" @click="scrollMedia(post._id, -1)">&#10094;</button>
+                    <div class="media-post-items" :ref="el => mediaItems.set(post._id, el as HTMLElement)">
+                        <div v-for="(file, index) in post.uploaded" :key="index" class="media-post-item-wrapper">
+                            <div class="media-post-item">
+                                <img v-if="isImage(file.media)" :src="file.media" alt="Post media" />
+                                <video v-else-if="isVideo(file.media)" :src="file.media" controls></video>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="post-nav-btn" @click="scrollMedia(post._id, 1)">&#10095;</button>
+                </div>
+                <div class="bottom-bar">
+                    <div class="post-details">
+                        <p class="post-detail-price">{{ post.price ? '$' + post.price : 'Free' }}</p>
+                        <p class="post-detail-status" :class="{
+                            'available': post.status === 'Available',
+                            'sold': post.status === 'Sold',
+                            'not-available': post.status === 'Not Available',
+                            'looking-for': post.status === 'Looking For...'
+                        }">{{ post.status }}</p>
+                        <p class="post-detail-location" v-if="post.location">at {{ post.location }}</p>
+                    </div>
+                    <div class="send-message" v-if="post.username !== currentUser">
+                        <p class="btn-message">Send Message 
+                            <Send />
+                        </p>
+                    </div>
+                </div>
             </div>
-        </div>
-        <div v-if="isFetching && hasMorePosts && posts.length > 0" class="loading">
-            Loading more posts...
+            <div v-if="isFetching && hasMorePosts && posts.length > 0" class="loading">
+                Loading more posts...
+            </div>
         </div>
     </div>
 </template>
 
 <style scoped>
+.wrapper {
+    height: 85vh;
+    width: 100vh;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    justify-content: flex-end;
+    align-items: flex-start;
+    background-color: #212529;
+    border-radius: 30px;
+    padding-top: 5px;
+}
 .post-container {
     overflow: auto;
     display: flex;
     flex-direction: column;
     align-items: center;
     height: 85vh;
-    width: 100%;
+    width: 100vh;
     position: fixed;
-    top: 0;
-    left: 0;
-    margin-top: 80px;
+    padding: 50px 0 10px 0;
+}
+.searchpost-header {
+    display: flex;
+    width: 90%;
+    padding: 10px 65px 5px 10px;
+    margin-right: 20px;
+    justify-content: space-between;
+    align-items: center;
+    position: absolute;
+    background-color: #212529;
+    border-radius: 10px;
+    margin-top: -5px;
+    z-index: 1;
+}
+.search-bar {
+    width: 40%;
+    height: 40px;
+    background-color: #fff5;
+    padding: 0 .8rem;
+    border-radius: 2rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: .2s;
+}
+.search-bar:hover {
+    background-color: #fff8;
+    box-shadow: 0 .1rem .4rem #0002;
+}
+.search-bar svg {
+    background-color: transparent;
+    color: #212529;
+    width: 2.5em;
+    height: 2.5em;
+    margin-left: 10px;
+}
+.search-bar input {
+    color: black;
+    width: calc(100% - 40px);
+    height: 100%;
+    padding: 0 .5rem .1rem .3rem;
+    background-color: transparent;
+    border: none;
+    outline: none;
+    flex: 1;
+}
+.search-bar input::placeholder {
+    color: #434548;
+}
+.close-btn {
+    background-color: transparent;
+    color: white;
+    font-size: 1.5em;
+    cursor: pointer;
 }
 .loading {
     display: flex;

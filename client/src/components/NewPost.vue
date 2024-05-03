@@ -22,7 +22,11 @@ const selectedStatus = ref('Available');
 const handleMediaChange = (event: Event) => {
     const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
     const newFiles = Array.from((event.target as HTMLInputElement).files as FileList);
-    const validFiles = newFiles.filter((file) => file.size <= MAX_FILE_SIZE);
+    const validFiles = newFiles.filter((file) => {
+        const isValidType = (file.type.startsWith('image/') && ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg+xml', 'webp'].includes(file.type.split('/')[1])) || 
+        (file.type.startsWith('video/') && ['mp4', 'webm', 'ogg', 'avi', 'mov', 'flv'].includes(file.type.split('/')[1]));
+        return isValidType && file.size <= MAX_FILE_SIZE;
+    });
 
     selectedMedia.value = [...selectedMedia.value, ...validFiles];
 
@@ -92,7 +96,6 @@ const handleKeyPress = (event: KeyboardEvent) => {
 
 const postNewPost = async () => {
     const formData = new FormData();
-    console.log(userId.value);
     formData.append('userId', userId.value ? userId.value : '');
     formData.append('username', username.value ? username.value : 'Anonymous');
     formData.append('userImg', userImg.value ? userImg.value : "https://yotes-marketplace.s3.us-east-2.amazonaws.com/yotes-logo.png");

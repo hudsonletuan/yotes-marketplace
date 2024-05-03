@@ -27,12 +27,80 @@ const generateOTP = () => {
     return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
-const sendOTP = (email: string, otp: string) => {
+const sendOTP = (email: string, otp: string, type: string) => {
+    const date = new Date();
+    const formattedDate = date.toLocaleDateString('en-US', { day: '2-digit', month: 'long', year: 'numeric' });
     const mailOptions = {
         from: process.env.EMAIL_USER,
         to: email,
-        subject: 'Yotes Marketplace OTP',
-        text: `Your OTP is ${otp}`
+        subject: `Yotes Marketplace ${type} OTP`,
+        //text: `Your OTP is ${otp}`
+        html: `
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <link rel="icon" href="/favicon.ico">
+            <link rel="preconnect" href="https://fonts.googleapis.com">
+            <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+            <link href="https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Yotes Marketplace</title>
+        </head>
+        <body style="font-family: 'Open Sans', sans-serif; display: flex; flex-direction: column; justify-content: center; align-items: center; margin: 0; padding: 0; box-sizing: border-box;">
+            <div style="background-color: #7746C1; width: 755px; height: 40vh; padding-top: 30px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin: 0 85px 20px 75px;">
+                    <img src="https://yotes-marketplace.s3.us-east-2.amazonaws.com/branding.png" alt="Yotes Marketplace" style="width: 250px;">
+                    <h2 style="color: white">${formattedDate}</h2>
+                </div>
+                <div style="display: flex; align-items: center; flex-direction: column;">
+                    <div style="z-index: 100; background-color: #FFFFFF; width: 580px; height: 50vh; display: flex; flex-direction: column; align-items: center; border-radius: 20px;">
+                        <img src="https://yotes-marketplace.s3.us-east-2.amazonaws.com/password-svgrepo-com.png" alt="" style="height: 100px; width: 100px; margin-top: 30px;" />
+                        <h2 style="margin: 0;">THIS IS YOUR ONE-TIME OTP CODE</h2>
+                        <h5 style="margin: 10px 0 0 0; color: red;">DO NOT SHARE WITH ANYBODY</h5>
+                        <p style="font-size: 100px; margin: 0; color: #7746C1; font-weight: bold; letter-spacing: 5px;">${otp}</p>
+                        <p style="margin: 0;">This code is only valid for 5 minutes!</p>
+                    </div>
+                    
+                </div>
+            </div>
+            <div style="background-color: #dfcaff; width: 755px; height: 60vh; display: flex; align-items: flex-end; justify-content: center;">
+                <div style="display: flex; flex-direction: column;">
+                    <div class="contact" style="margin-bottom: 10px;">
+                        <h3 style="text-align: center; color: #646464; margin: 20px 0 0 0;">Need Help?</h3>
+                        <p style="text-align: center; color: #646464; margin: 0;">Feel free to contact me at <a style="color: #7746C1; text-decoration: none; font-weight: bold;" href="mailto:tuan.le@yotes.collegeofidaho.edu">tuan.le@yotes.collegeofidaho.edu</a></p>
+                    </div>
+                    <hr style="border: 1px solid #646464; width: 500px;" />
+                    <div class="address" style="margin-bottom: 10px;">
+                        <p style="text-align: center; color: #7746C1; margin: 0; font-size: 18px; font-weight: bold;">The College of Idaho</b>
+                        <p style="text-align: center; color: #646464; margin: 0; font-weight: 600;">2112 Cleveland Blvd, Caldwell, ID 83605</p>
+                    </div>
+                    <div style="display: flex; justify-content: center;">
+                        <a style="text-decoration: none; margin-right: 5px;" href="https://www.facebook.com/thecollegeofidaho/" target="_blank">
+                            <img src="https://yotes-marketplace.s3.us-east-2.amazonaws.com/2021_Facebook_icon.svg.png" alt="Facebook" style="width: 40px; align-items: center;"/>
+                        </a>
+                        <a style="text-decoration: none; margin-top: 2px; margin-right: 5px;" href="https://x.com/collegeofidaho" target="_blank">
+                            <img src="https://yotes-marketplace.s3.us-east-2.amazonaws.com/X_logo_2023.svg.png" alt="X" style="width: 42px; align-items: center;"/>
+                        </a>
+                        <a style="text-decoration: none; margin-right: 10px;" href="https://www.flickr.com/photos/thecollegeofidaho/albums" target="_blank">
+                            <img src="https://yotes-marketplace.s3.us-east-2.amazonaws.com/Flickr_logo_-_SuperTinyIcons.svg.png" alt="Flickr" style="width: 42px; align-items: center; border-radius: 50%;"/>
+                        </a>
+                        <a style="text-decoration: none; margin-right: 10px;" href="https://www.instagram.com/collegeofidaho/" target="_blank">
+                            <img src="https://yotes-marketplace.s3.us-east-2.amazonaws.com/Instagram_logo_2022.svg.png" alt="Instagram" style="width: 42px; align-items: center;"/>
+                        </a>
+                        <a style="text-decoration: none; margin-top: -1px; display: flex; align-items: center; justify-content: center;" href="https://www.youtube.com/user/goyotes" target="_blank">
+                            <img src="https://yotes-marketplace.s3.us-east-2.amazonaws.com/YouTube_full-color_icon_(2017).svg.png" alt="YouTube" style="width: 42px; align-items: center;"/>
+                        </a>
+                    </div>
+                    <div class="copyright">
+                        <p style="text-align: center; color: #646464; margin: 0 0 30px 0;">Copyright &copy; 2024 The College of Idaho. All rights reserved.</p>
+                    </div>
+                </div>
+            </div>
+        </body>
+        </html>
+        
+        `
     };
 
     let transporter = nodemailer.createTransport({
@@ -87,6 +155,23 @@ router.post('/login', async (req, res) => {
 
 const otpCache: { [key: string]: { otp: string, expiresAt: number } } = {};
 
+router.post('/recoverOTP', async (req, res) => {
+    try {
+        const { email, username } = req.body;
+        let user = await User.findOne({ $or: [{ username }, { email }] });
+        if (!user) {
+            return res.status(400).json({ message: 'User not found' });
+        }
+        const userEmail = user.email;
+        const otp = generateOTP();
+        otpCache[userEmail] = { otp, expiresAt: Date.now() + 5 * 60 * 1000 };
+        sendOTP(userEmail, otp, "Recover");
+        res.status(200).json({ message: 'OTP sent successful', otpCache, userEmail });
+    } catch (error) {
+        res.status(500).json({ message: 'Request OTP failed', error });
+    }
+});
+
 router.post('/signup', async (req, res) => {
     try {
         const { username, email, password } = req.body;
@@ -104,7 +189,7 @@ router.post('/signup', async (req, res) => {
 
         const otp = generateOTP();
         otpCache[email] = { otp, expiresAt: Date.now() + 5 * 60 * 1000 };
-        sendOTP(email, otp);
+        sendOTP(email, otp, "Signup");
 
         // const newUser = new User({ username, email, password: hashedPassword });
         // await newUser.save();
@@ -122,7 +207,7 @@ router.post('/resendOTP', async (req, res) => {
         }
         const otp = generateOTP();
         otpCache[email] = { otp, expiresAt: Date.now() + 5 * 60 * 1000 };
-        sendOTP(email, otp);
+        sendOTP(email, otp, "Signup");
         res.status(200).json({ message: 'OTP resent successful', otpCache });
     } catch (error) {
         res.status(500).json({ message: 'Resend OTP failed', error });
@@ -166,6 +251,87 @@ router.post('/signupVerify', async (req, res) => {
     }
 });
 
+const s3 = new AWS.S3({
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+});
+
+router.post('/updateimage', upload.single('image'), async (req, res) => {
+    try {
+        const { userId, username } = req.body;
+        const file = req.file as Express.Multer.File;
+        const params = {
+            Bucket: 'yotes-marketplace',
+            Key: `${userId}-${username}-${Date.now()}-${file.originalname}`,
+            Body: file.buffer,
+            ContentType: file.mimetype,
+            ACL: 'public-read',
+        };
+        const data = await s3.upload(params).promise();
+        const user = await User.findByIdAndUpdate(userId, { img: data.Location }, { new: true });
+        const posts = await Post.updateMany({ userId }, { userImg: data.Location });
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+        res.status(200).json({ message: 'Image updated successfully', user: user });
+    } catch (error) {
+        res.status(500).json({ message: 'Error updating image', error });
+    }
+});
+
+router.post('/changeusername', async (req, res) => {
+    try {
+        const { userId, newUsername, password } = req.body;
+        const userName = await User.findOne({ username: newUsername });
+        if (userName) {
+            return res.status(400).json({ message: 'Username already exists' });
+        }
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(400).json({ message: 'User not found' });
+        }
+        const isPasswordMatch = await user.comparePassword(password);
+        if (!isPasswordMatch) {
+            return res.status(400).json({ message: 'Your password is not correct' });
+        }
+        const updateUsername = await User.findByIdAndUpdate(userId, { username: newUsername }, { new: true });
+        const posts = await Post.updateMany({ userId }, { username: newUsername });
+        if (!updateUsername) {
+            return res.status(400).json({ message: 'Username not updated' });
+        }
+        res.status(200).json({ message: 'Username changed successfully', username: updateUsername.username });
+    } catch (error) {
+        res.status(500).json({ message: 'Error changing username', error });
+    }
+});
+
+router.post('/changepassword', async (req, res) => {
+    try {
+        const { userId, email, oldPassword, reNewPassword } = req.body;
+        let user;
+        if (userId) {
+            user = await User.findById(userId);
+        } else {
+            user = await User.findOne({ email });
+        }
+        if (!user) {
+            return res.status(400).json({ message: 'User not found' });
+        }
+        const uId = user._id;
+        if (oldPassword) {
+            const isPasswordMatch = await user.comparePassword(oldPassword);
+            if (!isPasswordMatch) {
+                return res.status(400).json({ message: 'Your old password is not correct' });
+            }
+        }
+        const hashedNewPassword = await bcrypt.hash(reNewPassword, 10);
+        await User.findByIdAndUpdate(uId, { password: hashedNewPassword }, { new: true });
+        res.status(200).json({ message: 'Password changed successfully' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error changing password', error });
+    }
+});
+
 router.get('/posts', async (req, res) => {
     const limit = parseInt(req.query.limit as string) || 10;
     const skip = parseInt(req.query.skip as string) || 0;
@@ -176,12 +342,6 @@ router.get('/posts', async (req, res) => {
     } catch (error) {
         res.status(500).json({ message: 'Error fetching posts', error });
     }
-});
-
-
-const s3 = new AWS.S3({
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
 });
 
 router.post('/newpost', upload.array('media'), async (req, res) => {
