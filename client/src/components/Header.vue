@@ -1,10 +1,24 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, reactive } from 'vue';
+import PlusBox from './svgs/PlusBox.vue';
+import GridView from './svgs/GridView.vue';
+import ListView from './svgs/ListView.vue';
+import ChatIcon from './svgs/ChatIcon.vue';
+import ChatList from './ChatList.vue';
+import Messages from './Messages.vue';
+import MediaPreview from './MediaPreview.vue';
+
+import { socket, countTotalUnseenMessages } from '@/socket';
 
 const emit = defineEmits(['open-newpost', 'open-searchpost', 'open-usersign', 'open-profile']);
 
+const userId = computed(() => localStorage.getItem('userId'));
 const username = computed(() => localStorage.getItem('username'));
 const userImg = computed(() => localStorage.getItem('userImg'));
+
+const props = defineProps<{
+    searchInputValueReset: string;
+}>();
 
 const handleProfileClick = () => {
     if (username.value) {
@@ -18,14 +32,152 @@ const handleLogoClick = () => {
     location.reload();
 };
 
-const searchInputValue = ref('');
+const searchInputValue = ref(props.searchInputValueReset);
 const handleSearch = () => {
     if (searchInputValue.value) {
         emit('open-searchpost', searchInputValue.value);
     }
 };
 
+const handleViewPost = (postId: string) => {
+    searchInputValue.value = postId;
+    handleSearch();
+};
+
+watch(() => props.searchInputValueReset, (newValue: any) => {
+    searchInputValue.value = newValue;
+});
+
 const isGridView = ref(false);
+const showChatList = ref<boolean>(false);
+const handleShowChatList = () => {
+    if (showChatList.value) {
+        showChatList.value = false;
+    } else if (!showChatList.value && showConversation.value) {
+        showConversation.value = false;
+    } else if (!showChatList.value && !showConversation.value) {
+        showChatList.value = true;
+    }
+};
+
+const showConversation = ref(false);
+const selectedConversation = ref<any>(null);
+const handleOpenConversation = (conversation: any) => {
+    showChatList.value = false;
+    showConversation.value = true;
+    selectedConversation.value = conversation;
+};
+
+const handleConversationClick = (conversation: any) => {
+    // console.log('conversation clicked', conversation);
+    selectedConversation.value = conversation;
+};
+
+const handleChatDeleted = (isDeletedConversationOpened: boolean) => {
+    if (isDeletedConversationOpened) {
+        showConversation.value = false;
+        showChatList.value = true;
+    }
+};
+
+// let count = 0;
+// let timeoutId: NodeJS.Timeout | null = null;
+const handleDocumentClick = (event: MouseEvent) => {
+    const chatListElement = document.getElementById('chat-list');
+    if (
+        (showChatList.value && chatListElement && !chatListElement.contains(event.target as Node))
+    ) {
+        showChatList.value = false;
+    }
+    // const messagesElement = document.getElementById('mess-component');
+    // if (showConversation.value && selectedConversation.value) {
+    //     if (count === 0 && messagesElement && !messagesElement.contains(event.target as Node)) {
+    //         timeoutId = setTimeout(() => {
+    //             if (count === 0) {
+    //                 count += 1;
+    //             }
+    //         }, 1000);
+    //     } else if (count === 1 && messagesElement && !messagesElement.contains(event.target as Node)) {
+    //         showConversation.value = false;
+    //         count = 0;
+    //     }
+    // }
+};
+// watch(() => selectedConversation.value, () => {
+//     if (timeoutId !== null) {
+//         clearTimeout(timeoutId);
+//     }
+//     count = 0;
+// });
+
+const totalUnseenMessage = reactive({ total: 0 });
+
+socket.on('newMessage', (newComingMessage) => {
+    if (newComingMessage.messages[newComingMessage.messages.length - 1].userId !== userId.value) {
+        totalUnseenMessage.total += 1;
+        const messageButton = document.querySelector('.message-group button') as HTMLButtonElement;
+        if (totalUnseenMessage.total > 0) {
+            messageButton.style.background = 'linear-gradient(45deg, rgba(209,51,51,1) 0%, rgba(209,51,51,1) 32%, rgba(201,69,252,1) 100%)';
+        }
+    }
+});
+socket.on('updateMessageStatus', (conversation, totalSeen) => {
+    if (conversation.messages[conversation.messages.length - 1].userId !== userId.value) {
+        totalUnseenMessage.total -= totalSeen;
+        const messageButton = document.querySelector('.message-group button') as HTMLButtonElement;
+        if (totalUnseenMessage.total === 0) {
+            messageButton.style.background = 'transparent';
+            messageButton.addEventListener('mouseenter', () => {
+                messageButton.style.backgroundColor = 'white';
+            });
+
+            messageButton.addEventListener('mouseleave', () => {
+                messageButton.style.backgroundColor = 'transparent';
+            });
+        }
+    }
+});
+
+socket.on('conversationDeleted', (deleteConversationId, deletePostId, theUnseenLeft) => {
+    totalUnseenMessage.total -= theUnseenLeft;
+    const messageButton = document.querySelector('.message-group button') as HTMLButtonElement;
+    if (totalUnseenMessage.total === 0) {
+        messageButton.style.background = 'transparent';
+        messageButton.addEventListener('mouseenter', () => {
+            messageButton.style.backgroundColor = 'white';
+        });
+
+        messageButton.addEventListener('mouseleave', () => {
+            messageButton.style.backgroundColor = 'transparent';
+        });
+    }
+});
+
+onMounted(() => {
+    if (userId.value) {
+        countTotalUnseenMessages(userId.value);
+    };
+    socket.on('unseenMessagesTotal', (data: number) => {
+        totalUnseenMessage.total = data;
+        const messageButton = document.querySelector('.message-group button') as HTMLButtonElement;
+        if (totalUnseenMessage.total > 0) {
+            messageButton.style.background = 'linear-gradient(45deg, rgba(209,51,51,1) 0%, rgba(209,51,51,1) 32%, rgba(201,69,252,1) 100%)';
+        }
+    });
+    document.addEventListener('click', handleDocumentClick);
+});
+
+onUnmounted(() => {
+    document.removeEventListener('click', handleDocumentClick);
+});
+
+// Open Media Preview
+const showMediaPreview = ref<boolean>(false);
+const mediaSrc = ref<string>('');
+const handleOpenMedia = (mediaUrl: string) => {
+    mediaSrc.value = mediaUrl;
+    showMediaPreview.value = true;
+};
 </script>
 
 <template>
@@ -35,26 +187,19 @@ const isGridView = ref(false);
         </div>
         <div class="new-post">
             <button @click="$emit('open-newpost')">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-plus-square" viewBox="0 0 16 16">
-                    <path d="M14 1a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1zM2 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2z"/>
-                    <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"/>
-                </svg>
+                <PlusBox />
                 New Post
             </button>
         </div>
         <div class="grid-view" v-if="!isGridView">
             <button @click="isGridView = true">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-grid" viewBox="0 0 16 16">
-                    <path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5zM2.5 2a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 0-.5-.5zm6.5.5A1.5 1.5 0 0 1 10.5 1h3A1.5 1.5 0 0 1 15 2.5v3A1.5 1.5 0 0 1 13.5 7h-3A1.5 1.5 0 0 1 9 5.5zm1.5-.5a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 0-.5-.5zM1 10.5A1.5 1.5 0 0 1 2.5 9h3A1.5 1.5 0 0 1 7 10.5v3A1.5 1.5 0 0 1 5.5 15h-3A1.5 1.5 0 0 1 1 13.5zm1.5-.5a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 0-.5-.5zm6.5.5A1.5 1.5 0 0 1 10.5 9h3a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 9 13.5zm1.5-.5a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 0-.5-.5z"/>
-                </svg>
+                <GridView />
                 View As Grid
             </button>
         </div>
         <div class="list-view" v-if="isGridView">
             <button @click="isGridView = false">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-view-list" viewBox="0 0 16 16">
-                    <path d="M3 4.5h10a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2m0 1a1 1 0 0 0-1 1v3a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-3a1 1 0 0 0-1-1zM1 2a.5.5 0 0 1 .5-.5h13a.5.5 0 0 1 0 1h-13A.5.5 0 0 1 1 2m0 12a.5.5 0 0 1 .5-.5h13a.5.5 0 0 1 0 1h-13A.5.5 0 0 1 1 14"/>
-                </svg>
+                <ListView />
                 View As List
             </button>
         </div>
@@ -65,24 +210,71 @@ const isGridView = ref(false);
             </svg>
         </div>
         <div class="profile" @click="handleProfileClick">
-            <img :src="userImg ?? 'https://yotes-marketplace.s3.us-east-2.amazonaws.com/yotes-logo.png'" alt="profile" />
+            <img :src="userImg ?? 'https://marketplace.tuanle.top/yotes-logo.png'" alt="profile" />
             <h3>{{ username ? username : 'Login/Sign Up' }}</h3>
+        </div>
+        <div v-if="username" class="message-group" id="chat-list">
+            <button @click="handleShowChatList">
+                <ChatIcon />
+                <p v-if="totalUnseenMessage.total > 0" style="font-weight: bold;">{{ totalUnseenMessage.total }}</p>
+                Messages
+            </button>
+            <ChatList v-if="showChatList" :show-chat-list="showChatList" @open-conversation="handleOpenConversation" />
+            <Messages v-if="showConversation && selectedConversation" :selected-conversation="selectedConversation" @update:selected-conversation="handleConversationClick" @view-post="handleViewPost" @chat-deleted="handleChatDeleted" @open-media="handleOpenMedia" />
+            <transition name="fade">
+                <div v-if="showMediaPreview" class="mediapreview-overlay modal-container">
+                    <div class="media-preview modal-inner">
+                    <MediaPreview :mediaSrc="mediaSrc" @close-mediapreview="showMediaPreview = false" />
+                    </div>
+                </div>
+            </transition>
         </div>
     </div>
 </template>
 
 <style scoped>
+/* Media Preview */
+.modal-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+}
+.modal-inner {
+    background-color: white;
+    padding: 20px;
+    border-radius: 10px;
+    max-width: 800px;
+}
+.media-preview {
+    max-width: 650px;
+}
+.fade-enter-active, .fade-leave-active {
+    transition: opacity 0.3s ease;
+}
+.fade-enter-from, .fade-leave-to {
+    opacity: 0;
+}
+
+/* Header */
 .header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 10px;
+    padding: 10px 30px;
     background-color: #333;
     color: white;
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
+    min-width: 800px;
     font-size: 16px;
 }
 button {
@@ -153,6 +345,13 @@ button:hover {
     border: none;
     outline: none;
     flex: 1;
+}
+.messages-group {
+    margin-bottom: -16.5rem;
+    background-color: #f0f0f0;
+    border-radius: 10px;
+    padding: 10px;
+    box-shadow: 0 .1rem .4rem #0002;
 }
 .profile {
     display: flex;

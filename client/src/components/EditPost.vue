@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick } from 'vue';
 import axios from 'axios';
+import Compressor from 'compressorjs';
+import heic2any from 'heic2any';
 
 const emit = defineEmits(['close-editpost', 'post-edited']);
 const closeEditPost = () => {
@@ -15,6 +17,7 @@ const props = defineProps<{
         _id: string;
         username: string;
         userImg: string;
+        topic: string;
         caption: string;
         status: string;
         price: number;
@@ -27,33 +30,86 @@ const selectedMedia = ref<File[]>([]);
 const existingMedia = ref<string[]>([]);
 const objectURLs = ref<string[]>([]);
 const hoverIndex = ref(-1);
+const topic = ref('');
 const caption = ref('');
 const location = ref('');
 const price = ref<number | null>(null);
 const showStatus = ref(false);
 const selectedStatus = ref('Available');
+const originalMediaUrls: string[] = props.post.uploaded.map((media: { media: string }) => media.media);
 const existingMediaUrls: string[] = props.post.uploaded.map((media: { media: string }) => media.media);
 
-const handleMediaChange = (event: Event) => {
+const uploadingImages = ref(false);
+const handleMediaChange = async (event: Event) => {
+    uploadingImages.value = true;
     const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
     const newFiles = Array.from((event.target as HTMLInputElement).files as FileList);
+    if (!newFiles.length){
+        uploadingImages.value = true;
+        return;
+    };
     const validFiles = newFiles.filter((file) => {
-        const isValidType = (file.type.startsWith('image/') && ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg+xml', 'webp'].includes(file.type.split('/')[1])) || 
-        (file.type.startsWith('video/') && ['mp4', 'webm', 'ogg', 'avi', 'mov', 'flv'].includes(file.type.split('/')[1]));
+        const isValidType = (file.type.startsWith('image/') && ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(file.type.split('/')[1])) || 
+        (file.type.startsWith('video/') && ['mp4'].includes(file.type.split('/')[1]));
         return isValidType && file.size <= MAX_FILE_SIZE;
     });
-
-    selectedMedia.value = [...selectedMedia.value, ...validFiles];
-
-    validFiles.forEach((file) => {
-        const objectURL = URL.createObjectURL(file);
-        objectURLs.value.push(objectURL);
-    });
-
+    const heicFiles = newFiles.filter((file) => file.name.toLocaleLowerCase().endsWith('.heic') || file.name.toLocaleLowerCase().endsWith('.heif'));
     const invalidFiles = newFiles.filter((file) => file.size > MAX_FILE_SIZE);
     if (invalidFiles.length) {
         alert(`The following files exceed the maximum file size of 5MB: ${invalidFiles.map((file) => file.name).join(', ')}`);
     }
+    if (!validFiles.length && !heicFiles.length) {
+        uploadingImages.value = false;
+        alert('Invalid file(s) selected. Only jpg, jpeg, png, heic/heif, and mp4 are supported.')
+        return;
+    };
+    if (heicFiles.length > 0) {
+        const conversionPromises = heicFiles.map((file) => {
+            return heic2any({
+                blob: file,
+                toType: 'image/jpeg',
+                quality: 0.3,
+            })
+            .then((convertedBlob) => {
+                const convertedFile = new File([convertedBlob as BlobPart], file.name.replace(/\.heic$|\.heif$/i, '.jpeg'), { type: 'image/jpeg' });
+                selectedMedia.value.push(convertedFile);
+                const objectURL = URL.createObjectURL(convertedFile);
+                objectURLs.value.push(objectURL);
+            })
+            .catch((error) => {
+                console.error(error);
+            });
+        });
+        await Promise.all(conversionPromises);
+    }
+    validFiles.forEach((file) => {
+        if (file.type.startsWith('video/')) {
+            const objectURL = URL.createObjectURL(file);
+            objectURLs.value.push(objectURL);
+            selectedMedia.value.push(file);
+        } else {
+            new Compressor(file, {
+                quality: 0.3,
+                success(result) {
+                    const compressedFiles = new File([result], file.name, { type: file.type });
+                    selectedMedia.value.push(compressedFiles);
+                    const objectURL = URL.createObjectURL(compressedFiles);
+                    objectURLs.value.push(objectURL);
+                },
+                error(error) {
+                    console.error(error.message);
+                },
+            });
+        }
+    });
+
+    // selectedMedia.value = [...selectedMedia.value, ...validFiles];
+
+    // validFiles.forEach((file) => {
+    //     const objectURL = URL.createObjectURL(file);
+    //     objectURLs.value.push(objectURL);
+    // });
+    uploadingImages.value = false;
 };
 
 const getObjectURL = (index: number) => objectURLs.value[index];
@@ -133,7 +189,15 @@ const handleKeyPress = (event: KeyboardEvent) => {
 };
 
 const hasChanges = computed(() => {
+    // console.log(topic.value !== props.post.topic, 
+    //     caption.value !== props.post.caption, 
+    //     location.value !== props.post.location, 
+    //     price.value !== props.post.price, 
+    //     selectedStatus.value !== props.post.status, 
+    //     JSON.stringify(existingMediaUrls) !== JSON.stringify(props.post.uploaded.map((media) => media.media)), 
+    //     selectedMedia.value.length > 0, existingMedia.value.length !== props.post.uploaded.length);
     return (
+        topic.value !== props.post.topic ||
         caption.value !== props.post.caption ||
         location.value !== props.post.location ||
         price.value !== props.post.price ||
@@ -144,17 +208,32 @@ const hasChanges = computed(() => {
     );
 });
 
+const uploading = ref(false);
 const postEditPost = async () => {
+    const removedMediaUrls = originalMediaUrls.filter((url) => !existingMediaUrls.includes(url));
     const formData = new FormData();
     formData.append('userId', userId.value ? userId.value : '');
     formData.append('_id', props.post._id);
     formData.append('username', props.post.username);
-    formData.append('userImg', props.post.userImg);
     formData.append('caption', caption.value);
     formData.append('status', selectedStatus.value);
     formData.append('price', price.value?.toString() || '');
     formData.append('location', location.value);
     formData.append('existingMediaUrls', JSON.stringify(existingMediaUrls));
+    formData.append('removedMediaUrls', JSON.stringify(removedMediaUrls));
+
+    if (caption.value.split(' ').length < 5) {
+        alert('Caption must be at least 5 words');
+        return;
+    }
+    if (topic.value.split(' ').length > 10) {
+        alert('Topic must be less than 10 words');
+        return;
+    }
+
+    if (topic.value && topic.value.split(' ').length <= 50) {
+        formData.append('topic', topic.value);
+    }
 
     const newMedia = selectedMedia.value.filter((file) => {
         const fileName = file.name; // Extract the file name from the file object
@@ -165,6 +244,13 @@ const postEditPost = async () => {
         formData.append('media', file);
     });
 
+    const totalMediaFiles = originalMediaUrls.length + newMedia.length - removedMediaUrls.length;
+    if (totalMediaFiles > 10) {
+        alert('You can only upload up to 10 media files');
+        return;
+    }
+
+    uploading.value = true;
     try {
         const response = await axios.put(`/api/editpost/${props.post._id}`, formData, {
             headers: {
@@ -176,7 +262,7 @@ const postEditPost = async () => {
         existingMedia.value = updatedPost.versions[updatedPost.versions.length - 1].uploaded.map((media: { media: string }) => media.media);
         selectedMedia.value = [];
 
-        alert('Post edited successfully!');
+        // alert('Post edited successfully!');
         emit('post-edited');
         window.location.reload();
     } catch (error) {
@@ -204,31 +290,26 @@ function getMimeType(url: string): string {
         png: 'image/png',
         gif: 'image/gif',
         bmp: 'image/bmp',
-        svg: 'image/svg+xml',
         webp: 'image/webp',
         mp4: 'video/mp4',
-        webm: 'video/webm',
-        ogg: 'video/ogg',
-        avi: 'video/x-msvideo',
-        mov: 'video/quicktime',
-        flv: 'video/x-flv',
     };
     return mimeTypes[extension as keyof typeof mimeTypes] || 'application/octet-stream';
 }
 
 const isImage = (fileUrl: string): boolean => {
-    const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg+xml', 'webp'];
+    const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'blob'];
     const fileExtension = fileUrl.split('.').pop()?.toLowerCase();
     return imageExtensions.includes(fileExtension || '');
 };
 
 const isVideo = (fileUrl: string): boolean => {
-    const videoExtensions = ['mp4', 'webm', 'ogg', 'avi', 'mov', 'flv'];
+    const videoExtensions = ['mp4'];
     const fileExtension = fileUrl.split('.').pop()?.toLowerCase();
     return videoExtensions.includes(fileExtension || '');
 };
 
 onMounted(() => {
+    topic.value = props.post.topic;
     caption.value = props.post.caption;
     location.value = props.post.location;
     price.value = props.post.price;
@@ -245,6 +326,17 @@ onMounted(() => {
 <template>
     <div class="edit-post-backdrop" @click="closeEditPost">
         <div class="edit-post-container" @click.stop>
+            <div v-if="uploading" class="uploading">
+                <div class="loader"></div>
+                <div class="loader2"></div>
+            </div>
+            <div v-show="uploadingImages" class="uploadingImages">
+                <div class="loaderImage"></div>
+                <div class="loaderImage2"></div>
+            </div>
+            <div class="topic-input">
+                <input type="text" class="input-topic" placeholder="Topic (Less than 10 words)" v-model="topic" />
+            </div>
             <div class="caption-input">
                 <textarea placeholder="Write a caption..." v-model="caption" />
             </div>
@@ -272,7 +364,7 @@ onMounted(() => {
             <div class="buttons">
                 <div class="sub-buttons-add">
                     <label class="btn label-add-media" for="media-upload">Add Media</label>
-                    <input type="file" accept="image/*, video/*" id="media-upload" multiple style="display: none" @change="handleMediaChange" />
+                    <input type="file" accept="image/*, video/mp4" id="media-upload" multiple style="display: none" @change="handleMediaChange" />
                     <input class="add-location" type="text" placeholder="Add Location" v-model="location" />
                     <div class="dropdown-container">
                         <button class="btn btn-status" @click="showStatus = !showStatus"><span v-if="selectedStatus">{{ selectedStatus }}</span></button>
@@ -307,6 +399,101 @@ onMounted(() => {
 }
 .edit-post-container {
     width: 600px;
+}
+.uploading {
+    display: flex;
+    gap: 10px;
+}
+/* HTML: <div class="loader"></div> */
+.loader {
+    width: 120px;
+    height: 22px;
+    border-radius: 40px;
+    color: #514b82;
+    border: 2px solid;
+    position: relative;
+    overflow: hidden;
+}
+.loader::before {
+    content: "";
+    position: absolute;
+    margin: 2px;
+    width: 14px;
+    top: 0;
+    bottom: 0;
+    left: -20px;
+    border-radius: inherit;
+    background: currentColor;
+    box-shadow: -10px 0 12px 3px currentColor;
+    clip-path: polygon(0 5%, 100% 0,100% 100%,0 95%,-30px 50%);
+    animation: l14 1s infinite linear;
+}
+@keyframes l14 {
+    100% {left: calc(100% + 20px)}
+}
+
+/* HTML: <div class="loader2"></div> */
+.loader2 {
+    width: fit-content;
+    font-weight: bold;
+    background:linear-gradient(90deg,#514b82 50%,#0000 0) right/200% 100%;
+    animation: l21 2s infinite linear;
+}
+.loader2::before {
+    content :"Updating...";
+    color: #0000;
+    padding: 0 5px;
+    background: inherit;
+    background-image: linear-gradient(90deg,#fff 50%,#000 0);
+    -webkit-background-clip:text;
+            background-clip:text;
+}
+
+@keyframes l21{
+    100%{background-position: left}
+}
+
+.uploadingImages {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+/* HTML: <div class="loader"></div> */
+.loaderImage {
+    width: 120px;
+    height: 20px;
+    border-radius: 20px;
+    background:
+    repeating-linear-gradient(135deg,#f03355 0 10px,#ffa516 0 20px) 0/0%   no-repeat,
+    repeating-linear-gradient(135deg,#ddd    0 10px,#eee    0 20px) 0/100%;
+    animation: l3 2s infinite;
+}
+@keyframes l3 {
+    100% {background-size:100%}
+}
+/* HTML: <div class="loader"></div> */
+.loaderImage2 {
+    width: fit-content;
+    font-weight: bold;
+    padding-bottom: 8px;
+    color: black;
+    background: linear-gradient(black 0 0) 0 100%/0% 3px no-repeat;
+    animation: l2 2s linear infinite;
+}
+.loaderImage2:before {
+    content:"Loading media files..."
+}
+@keyframes l2 {to{background-size: 100% 3px}}
+
+.topic-input input {
+    width: 100%;
+    padding: 10px;
+    font-size: 18px;
+    font-weight: bold;
+    border: none;
+    border-bottom: 1px solid #ccc;
+    margin-bottom: 10px;
+    outline: none;
 }
 .caption-input textarea {
     width: 100%;

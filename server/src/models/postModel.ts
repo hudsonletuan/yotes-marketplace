@@ -4,7 +4,7 @@ const postVersionSchema = new mongoose.Schema({
     username: {
         type: String,
     },
-    userImg: {
+    topic: {
         type: String,
     },
     caption: {

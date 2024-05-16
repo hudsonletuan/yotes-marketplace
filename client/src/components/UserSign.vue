@@ -61,6 +61,10 @@ const requestOTP = async () => {
         alert('Username must be at least 6 characters and a maximum of 12 characters');
         return;
     }
+    if (username.value.includes('admin') || username.value.includes('anonymous')) {
+        alert('Username cannot contain "admin" or "anonymous"');
+        return;
+    }
 
     const letters = username.value.match(/[a-zA-Z]/g);
     if (!letters || letters.length < 4) {

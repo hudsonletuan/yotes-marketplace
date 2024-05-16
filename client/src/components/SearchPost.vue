@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { ref, onMounted, reactive, computed, onBeforeUnmount } from 'vue';
+import { socket } from '../socket';
 import axios from 'axios';
 import BiPencil from './svgs/BiPencil.vue';
 import BiTrash from './svgs/BiTrash.vue';
 import BiFlag from './svgs/BiFlag.vue';
 import Send from './svgs/Send.vue';
+import FaSend from './svgs/FaSend.vue';
 
-const emit = defineEmits(['open-editpost', 'open-userpost', 'close-searchpost']);
+const emit = defineEmits(['open-editpost', 'open-userpost', 'close-searchpost', 'open-media', 'open-report']);
 const closeSearchPost = () => {
     emit('close-searchpost');
 };
@@ -16,6 +18,8 @@ const props = defineProps<{
 }>();
 
 const currentUser = localStorage.getItem('username');
+const currentUserId = localStorage.getItem('userId');
+const currentUserImg = localStorage.getItem('userImg');
 
 const posts = ref<any[]>([]);
 const mediaItems = reactive(new Map<string, HTMLElement | null>());
@@ -49,13 +53,13 @@ const toggleCaption = (post: any) => {
 };
 
 const isImage = (fileUrl: string): boolean => {
-    const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg+xml', 'webp'];
+    const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
     const fileExtension = fileUrl.split('.').pop()?.toLowerCase();
     return imageExtensions.includes(fileExtension || '');
 };
 
 const isVideo = (fileUrl: string): boolean => {
-    const videoExtensions = ['mp4', 'webm', 'ogg', 'avi', 'mov', 'flv'];
+    const videoExtensions = ['mp4'];
     const fileExtension = fileUrl.split('.').pop()?.toLowerCase();
     return videoExtensions.includes(fileExtension || '');
 };
@@ -126,18 +130,76 @@ const handleScroll = async (event: Event) => {
     }
 };
 
-const deletePost = async (postId: string) => {
-    try {
-        await axios.delete(`/api/deletepost/${postId}`);
-        posts.value = posts.value.filter((post: any) => post._id !== postId);
-    } catch (error) {
-        console.error('Failed to delete post:', error);
+const deletePost = (postId: string) => {
+    // try {
+    //     await axios.delete(`/api/deletepost/${postId}`);
+    //     posts.value = posts.value.filter((post: any) => post._id !== postId);
+    // } catch (error) {
+    //     console.error('Failed to delete post:', error);
+    // }
+    socket.emit('deletePost', postId, currentUserId);
+};
+
+socket.on('postDeleted', (postId, userId) => {
+    posts.value = posts.value.filter((post: any) => post._id !== postId);
+    // if (userId === currentUserId) {
+    //     allPosts.value = allPosts.value.filter((post: any) => post._id !== postId);
+    // }
+});
+
+const confirmDelete = (postId: string) => {
+    if (confirm('Are you sure you want to delete this post? All chats related to this post will be deleted as well. This action cannot be undone.')) {
+        deletePost(postId);
     }
 };
 
-const confirmDelete = (postId: string) => {
-    if (confirm('Are you sure you want to delete this post?')) {
-        deletePost(postId);
+// Messages
+const conversationId = ref<string>('');
+const conversationPostId = ref<string>('');
+const postChatDict = reactive<{ [key: string]: any[] }>({});
+
+const handleDirectMessage = async (post: any) => {
+    const postId = post._id;
+    const sendMessageDiv = document.getElementById(`send-message-${postId}`) as HTMLElement;
+    const messageActionDiv = document.getElementById(`message-action-${postId}`) as HTMLElement;
+    const messageInputDiv = document.getElementById(`message-input-${postId}`) as HTMLElement;
+    if (messageActionDiv?.style.display === 'none' && messageInputDiv?.style.display === 'none') {
+        messageActionDiv.style.display = 'flex';
+        messageInputDiv.style.display = 'flex';
+        sendMessageDiv.classList.add('hidden');
+    } else {
+        messageActionDiv.style.display = 'none';
+        messageInputDiv.style.display = 'none';
+        sendMessageDiv.classList.remove('hidden');
+    }
+    const postUserId = post.userId;
+    const postTopic = post.topic;
+    const postUsername = post.username;
+    const postUserImg = post.userImg;
+    const payload = {
+        postId,
+        postTopic,
+        postUserId,
+        postUsername,
+        postUserImg,
+        selfUserId: currentUserId || '',
+        selfUsername: currentUser || '',
+        selfUserImg: currentUserImg || '',
+    };
+    try {
+        const response = await axios.post('/api/chatinit', payload);
+        if (response.status === 404) {
+            alert(response.data.message);
+            posts.value = posts.value.filter((post: any) => post._id !== postId);
+            return;
+        }
+        conversationId.value = response.data.conversation._id;
+        conversationPostId.value = response.data.conversation.postId;
+        if (!postChatDict[postId]) {
+            postChatDict[postId] = [conversationId.value];
+        }
+    } catch (error) {
+        //console.error('Failed to open chat:', error);
     }
 };
 
@@ -162,6 +224,8 @@ const filteredPosts = computed(() => {
     const queryWords = searchQuery.value.toLowerCase().split(/\s+/);
     queryWords.push(props.searchInputValue.toLowerCase());
     return posts.value.filter((post) => {
+        const idMatch = queryWords.every((word) => post._id.toLowerCase().includes(word));
+        const userIdMatch = queryWords.every((word) => post.userId.toLowerCase().includes(word));
         const usernameMatch = queryWords.every((word) => post.username.toLowerCase().includes(word));
         const captionMatch = queryWords.every((word) => post.caption.toLowerCase().includes(word));
         const locationMatch = post.location ? queryWords.every((word) => post.location.toLowerCase().includes(word)) : false;
@@ -170,6 +234,8 @@ const filteredPosts = computed(() => {
         const dateTimeMatch = queryWords.every((word) => formatDate(post.createdAt).includes(word));
 
         return (
+        idMatch ||
+        userIdMatch ||
         usernameMatch ||
         captionMatch ||
         locationMatch ||
@@ -180,6 +246,55 @@ const filteredPosts = computed(() => {
     });
 });
 
+const escapeHtml = (text: string) => {
+    const entityMap: { [key: string]: string } = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;',
+        '/': '&#x2F;',
+    };
+
+    return text.replace(/[&<>"'/]/g, (s) => entityMap[s]);
+};
+
+const sendMessage = (event: Event, postId: string, postUsernameCheck: string, postConversationId: string) => {
+    const messageInput = document.getElementById(`input-message-${postId}`) as HTMLInputElement;
+    const messageContent = messageInput.value.trim();
+    let userRole = '';
+    if (messageContent) {
+        if (postUsernameCheck === localStorage.getItem('username')) {
+            userRole = 'owner';
+        } else {
+            userRole = 'visitor';
+        }
+        if (event instanceof KeyboardEvent && event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault();
+            const newMessage = {
+                conversationId: postConversationId,
+                userRole: userRole,
+                userId: localStorage.getItem('userId'),
+                username: localStorage.getItem('username'),
+                content: escapeHtml(messageContent),
+                createdAt: new Date().toISOString(),
+            };
+            socket.emit('sendMessage', newMessage);
+            messageInput.value = '';
+        } else if (event instanceof MouseEvent) {
+            const newMessage = {
+                conversationId: postConversationId,
+                userRole: userRole,
+                userId: localStorage.getItem('userId'),
+                username: localStorage.getItem('username'),
+                content: escapeHtml(messageContent),
+                createdAt: new Date().toISOString(),
+            };
+            socket.emit('sendMessage', newMessage);
+            messageInput.value = '';
+        }
+    }
+};
 </script>
 
 <template>
@@ -197,23 +312,26 @@ const filteredPosts = computed(() => {
             <div class="post" v-for="post in filteredPosts" :key="post._id" :id="`post-${post._id}`">
                 <div class="post-head">
                     <div class="post-user">
-                        <img :src="post.userImg ? post.userImg : 'https://yotes-marketplace.s3.us-east-2.amazonaws.com/yotes-logo.png'" alt="profile" />
+                        <img :src="post.userImg ? post.userImg : 'https://marketplace.tuanle.top/yotes-logo.png'" alt="profile" />
                         <div class="post-user-info">
-                            <h3 style="color: white;" @click="$emit('open-userpost', post.username)">{{ post.username }}</h3>
+                            <h3 style="color: white;" @click="$emit('open-userpost', post.userId)">{{ post.username }}</h3>
                             <h5 style="color: #D5D5D5;">{{ postModifiedDate(post) }}</h5>
                         </div>
                     </div>
                     <div class="post-options">
-                        <button class="btn-post-option btn-post-edit" v-if="post.username === currentUser" title="Edit" @click="$emit('open-editpost', post)">
+                        <button class="btn-post-option btn-post-edit" v-if="post.username === currentUser && currentUser" title="Edit" @click="$emit('open-editpost', post)">
                             <BiPencil />
                         </button>
-                        <button class="btn-post-option btn-post-delete" v-if="post.username === currentUser" title="Delete" @click="confirmDelete(post._id)">
+                        <button class="btn-post-option btn-post-delete" v-if="post.username === currentUser && currentUser" title="Delete" @click="confirmDelete(post._id)">
                             <BiTrash />
                         </button>
-                        <button class="btn-post-option btn-post-report" title="Report">
+                        <button class="btn-post-option btn-post-report" v-if="post.username !== currentUser && currentUser" title="Report" @click="$emit('open-report', post._id)">
                             <BiFlag />
                         </button>
                     </div>
+                </div>
+                <div class="post-topic">
+                    <p>{{ post.topic }}</p>
                 </div>
                 <div class="post-caption">
                     <p v-if="!isCaptionLong(post) || showFullCaption.get(post._id)">
@@ -230,8 +348,10 @@ const filteredPosts = computed(() => {
                     <div class="media-post-items" :ref="el => mediaItems.set(post._id, el as HTMLElement)">
                         <div v-for="(file, index) in post.uploaded" :key="index" class="media-post-item-wrapper">
                             <div class="media-post-item">
-                                <img v-if="isImage(file.media)" :src="file.media" alt="Post media" />
-                                <video v-else-if="isVideo(file.media)" :src="file.media" controls></video>
+                                <img @click="$emit('open-media', file.media)" v-if="isImage(file.media)" :src="file.media" alt="Post media" />
+                                <div @click.prevent="$emit('open-media', file.media)" v-else-if="isVideo(file.media)">
+                                    <video  :src="file.media" controls controlslist="nodownload"></video>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -248,11 +368,20 @@ const filteredPosts = computed(() => {
                         }">{{ post.status }}</p>
                         <p class="post-detail-location" v-if="post.location">at {{ post.location }}</p>
                     </div>
-                    <div class="send-message" v-if="post.username !== currentUser">
-                        <p class="btn-message">Send Message 
+                    <div :id="`send-message-${post._id}`" class="send-message" v-if="post.username !== currentUser && currentUser" @click="handleDirectMessage(post)">
+                        <p class="btn-mess btn-message">Send Message 
                             <Send />
                         </p>
                     </div>
+                    <div :id="`message-action-${post._id}`" class="message-action" style="display: none;">
+                        <button class="btn btn-close" @click="handleDirectMessage(post)">Discard</button>
+                        <p class="btn-mess btn-send-message" @click="sendMessage($event, post._id, post.username, postChatDict[post._id][0])">Send
+                            <FaSend />
+                        </p>
+                    </div>
+                </div>
+                <div :id="`message-input-${post._id}`" class="message-input" style="display: none;">
+                    <input :id="`input-message-${post._id}`" type="text" placeholder="Type a short message..." @keydown.enter="sendMessage($event, post._id, post.username, postChatDict[post._id][0])" />
                 </div>
             </div>
             <div v-if="isFetching && hasMorePosts && posts.length > 0" class="loading">
@@ -282,7 +411,7 @@ const filteredPosts = computed(() => {
     display: flex;
     flex-direction: column;
     align-items: center;
-    height: 85vh;
+    height: 84vh;
     width: 100vh;
     position: fixed;
     padding: 50px 0 10px 0;
@@ -290,7 +419,7 @@ const filteredPosts = computed(() => {
 .searchpost-header {
     display: flex;
     width: 90%;
-    padding: 10px 65px 5px 10px;
+    padding: 6px 65px 5px 10px;
     margin-right: 20px;
     justify-content: space-between;
     align-items: center;
@@ -362,6 +491,14 @@ const filteredPosts = computed(() => {
     justify-content: space-between;
     align-items: center;
     margin-bottom: 10px;
+}
+.post-topic p {
+    margin-bottom: 10px;
+    font-size: 18px;
+    font-weight: bold;
+    color: white;
+    border: none;
+    border-bottom: 1px solid #ccc;
 }
 .btn-post-option {
     background-color: transparent;
@@ -437,7 +574,7 @@ const filteredPosts = computed(() => {
     align-items: center;
     justify-content: space-between;
     margin-top: 10px;
-    gap: 20px;
+    white-space: nowrap;
 }
 .post-detail-price {
     background-color: #ffe45f;
@@ -458,7 +595,7 @@ const filteredPosts = computed(() => {
     border-radius: 10px;
     border: solid 1px white;
 }
-.btn-message {
+.btn-mess {
     background-color: #238aff;
     color: white;
     font-weight: bold;
@@ -468,12 +605,18 @@ const filteredPosts = computed(() => {
     cursor: pointer;
     transition: background-color 0.3s ease;
 }
-.btn-message:hover {
+.btn-mess:hover {
     background-color: #0f5aff;
     transition: background-color 0.3s ease;
 }
-.btn-message svg {
+.btn-mess svg {
     margin-bottom: -5px;
+}
+.btn-send-message {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
 }
 .available {
     background-color: #84ff84;
@@ -498,6 +641,7 @@ const filteredPosts = computed(() => {
     height: 200px;
     border-radius: 10px;
     object-fit: contain;
+    cursor: pointer;
 }
 .media-post-item {
     position: relative;
@@ -555,5 +699,52 @@ const filteredPosts = computed(() => {
     overflow-x: auto;
     scroll-behavior: smooth;
     gap: 10px;
+}
+.message-input {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 10px;
+}
+.message-input input {
+    width: 100%;
+    height: 40px;
+    padding: 0 10px;
+    border: solid 1px white;
+    border-radius: 20px;
+    outline: none;
+    background-color: transparent;
+    color: white;
+}
+.bottom-bar .message-action {
+    box-sizing: border-box;
+    flex-basis: 4rem;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 0.5rem 0 1.5rem;
+}
+.bottom-bar .message-action svg {
+    height: 20px;
+    fill: white;
+    cursor: pointer;
+    transition: fill 200ms;
+    margin: 0 0.1rem;
+}
+.btn-close {
+    padding: 10px;
+    border-radius: 10px;
+    border: none;
+    color: white;
+    cursor: pointer;
+    margin: 0 10px;
+    font-size: 14px;
+    font-weight: bold;
+    transition: .2s ease-in-out;
+    background-color: red;
+}
+.btn-close:hover {
+    background-color: #cd0000;
 }
 </style>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { updateUserStatus } from '@/socket';
 import { computed, ref } from 'vue';
 import axios from 'axios';
 
@@ -10,6 +11,7 @@ const userEmail = computed(() => localStorage.getItem('userEmail'));
 const emit = defineEmits(['open-changepassword', 'open-changeusername', 'close-profile']);
 
 const handleLogout = () => {
+    updateUserStatus('Offline');
     localStorage.removeItem('username');
     localStorage.removeItem('userImg');
     localStorage.removeItem('userId');
@@ -31,7 +33,7 @@ const handleImageChange = (e: Event) => {
     const target = e.target as HTMLInputElement;
     const file: File | null = target.files ? target.files[0] : null;
     if (file) {
-        const validExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg+xml', 'webp'];
+        const validExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'blob'];
         const fileExtension = file.name.split('.').pop()?.toLowerCase();
         if (fileExtension && validExtensions.includes(fileExtension)) {
             const reader = new FileReader();
@@ -60,7 +62,7 @@ const handleImageSubmit = async () => {
                 withCredentials: true,
             });
             if (response.status === 200) {
-                alert('Profile image updated successfully');
+                // alert('Profile image updated successfully');
                 localStorage.setItem('userImg', response.data.user.img);
                 location.reload();
             } else {
@@ -83,11 +85,11 @@ const handleImageSubmit = async () => {
     <div class="profile-container">
         <div class="card left-card">
             <div class="profile-image">
-                <img :src="selectedImage || userImg || 'https://yotes-marketplace.s3.us-east-2.amazonaws.com/yotes-logo.png'" alt="Profile Image" />
+                <img :src="selectedImage || userImg || 'https://marketplace.tuanle.top/yotes-logo.png'" alt="Profile Image" />
             </div>
             <div class="change-image-container">
                 <input type="file" class="change-image-input" id="imageFile" ref="imageInput" name="imageFile" 
-                accept="image/jpg, image/jpeg, image/png, image/gif, image/bmp, image/svg+xml, image/webp" @change="handleImageChange" hidden/>
+                accept="image/jpg, image/jpeg, image/png, image/gif, image/bmp, image/webp" @change="handleImageChange" hidden/>
                 <input type="button" class="btn change-image-btn" id="imageBtn" @click="handleImageClick" value="Upload Your Image" />
             </div>
             <button v-if="selectedImage" class="btn change-image-submit" @click="handleImageSubmit">Update Image</button>

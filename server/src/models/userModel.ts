@@ -6,6 +6,9 @@ interface IUserDocument extends Document {
     email: string;
     password: string;
     img: string;
+    userStatus: string;
+    lastActive: Date;
+    socketId: string | null;
     comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
@@ -29,8 +32,18 @@ const userSchema = new mongoose.Schema({
     },
     img: {
         type: String,
-        default: 'https://yotes-marketplace.s3.us-east-2.amazonaws.com/yotes-logo.png'
-    }
+        default: 'https://marketplace.tuanle.top/yotes-logo.png'
+    },
+    userStatus: {
+        type: String,
+    },
+    lastActive: {
+        type: Date,
+    },
+    socketId: {
+        type: String,
+        default: null
+    },
 }, { timestamps: true });
 
 userSchema.methods.comparePassword = function (candidatePassword: string) {

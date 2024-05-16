@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import Header from '@/components/Header.vue';
 import Post from './components/Post.vue';
 import UserSign from './components/UserSign.vue';
@@ -12,7 +12,10 @@ import ChangeUsername from './components/ChangeUsername.vue';
 import ChangePassword from './components/ChangePassword.vue';
 import NewPost from './components/NewPost.vue';
 import EditPost from './components/EditPost.vue';
-import UserPost from './components/UserPost.vue';
+import MediaPreview from './components/MediaPreview.vue';
+import Report from './components/Report.vue';
+
+const userId = computed(() => localStorage.getItem('userId'));
 
 const showUserSign = ref(false);
 const showOTPRecover = ref(false);
@@ -23,7 +26,20 @@ const showChangeUsername = ref(false);
 const showChangePassword = ref(false);
 const showNewPost = ref(false);
 const showEditPost = ref(false);
-const showUserPost = ref(false);
+const showMediaPreview = ref(false);
+const showReport = ref(false);
+
+let media = ref<any>({});
+const handleOpenMedia = (mediaData: any) => {
+  media = mediaData;
+  showMediaPreview.value = true;
+};
+
+let reportPostId = ref<string>('');
+const handleShowReport = (postId: string) => {
+  reportPostId.value = postId;
+  showReport.value = true;
+};
 
 let editPost = ref<any>({});
 
@@ -44,19 +60,16 @@ const handleOpenChangePassword = (userId: string) => {
   profileUserId.value = userId;
 };
 
-let selectedUsername = ref<string | null>(null);
-
-const handleOpenUserPost = (username: string) => {
-  showUserPost.value = true;
-  selectedUsername.value = username;
-};
-
 let searchInputValueSet = ref<string>('');
 const handleSearch = (searchInputValue: string) => {
   searchInputValueSet.value = searchInputValue;
   if (searchInputValueSet.value) {
     showSearchPost.value = true;
   }
+};
+const handleCloseSearch = () => {
+  showSearchPost.value = false;
+  searchInputValueSet.value = '';
 };
 
 let emailSignUp = ref<string>('');
@@ -79,7 +92,7 @@ const appConfig = {
 
 <template>
   <div id="app">
-    <Header @open-newpost="showNewPost = true" @open-searchpost="handleSearch" @open-usersign="showUserSign = true" @open-profile="showProfile = true" />
+    <Header :searchInputValueReset="searchInputValueSet" class="header-section" @open-newpost="showNewPost = true" @open-searchpost="handleSearch" @open-usersign="showUserSign = true" @open-profile="showProfile = true" />
     <transition name="fade">
       <div v-if="showUserSign" class="user-sign-overlay modal-container">
         <div class="user-sign modal-inner">
@@ -90,7 +103,7 @@ const appConfig = {
     <transition name="fade">
       <div v-if="showSearchPost" class="search-post-overlay modal-container">
         <div class="search-post modal-inner">
-          <SearchPost :searchInputValue="searchInputValueSet" @close-searchpost="showSearchPost = false" @open-editpost="handleOpenEditPost" @open-userpost="handleOpenUserPost" />
+          <SearchPost :searchInputValue="searchInputValueSet" @close-searchpost="handleCloseSearch" @open-editpost="handleOpenEditPost" @open-userpost="handleSearch" @open-media="handleOpenMedia" @open-report="handleShowReport" />
         </div>
       </div>
     </transition>
@@ -129,7 +142,7 @@ const appConfig = {
         </div>
       </div>
     </transition>
-    <Post @open-editpost="handleOpenEditPost" @open-userpost="handleOpenUserPost" />
+    <Post @open-editpost="handleOpenEditPost" @open-userpost="handleSearch" @open-media="handleOpenMedia" @open-report="handleShowReport" />
     <transition name="fade">
       <div v-if="showNewPost" class="newpost-overlay modal-container">
         <div class="newpost modal-inner">
@@ -145,9 +158,16 @@ const appConfig = {
       </div>
     </transition>
     <transition name="fade">
-      <div v-if="showUserPost" class="userpost-overlay">
-        <div class="userpost modal-inner">
-          <UserPost :username="selectedUsername" @close-userpost="showUserPost = false" @open-editpost="handleOpenEditPost" />
+      <div v-if="showMediaPreview" class="mediapreview-overlay modal-container">
+        <div class="media-preview modal-inner">
+          <MediaPreview :mediaSrc="media" @close-mediapreview="showMediaPreview = false" />
+        </div>
+      </div>
+    </transition>
+    <transition name="fade">
+      <div v-if="showReport" class="report-overlay modal-container">
+        <div class="report-inner modal-inner">
+          <Report @close-report="showReport = false" :postIdReport = "reportPostId" />
         </div>
       </div>
     </transition>
@@ -176,7 +196,20 @@ template {
   background-color: white;
   padding: 20px;
   border-radius: 10px;
-  max-width: 80%;
+  max-width: 800px;
+}
+.report-inner {
+  background-color: #212529;
+  padding: 20px;
+  border-radius: 10px;
+  width: 100%;
+  min-width: 800px;
+}
+.header-section {
+  z-index: 100;
+}
+.video-compress {
+  z-index: 101;
 }
 .search-post, .user-sign, .userpost {
   background-color: transparent
@@ -192,6 +225,21 @@ template {
   justify-content: center;
   align-items: center;
   z-index: 110;
+}
+.postchat-overlay {
+  /* position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center; */
+  z-index: 100;
+}
+.media-preview {
+  max-width: 650px;
 }
 .profile, .changepassword, .changeusername {
   background-color: #212529;
