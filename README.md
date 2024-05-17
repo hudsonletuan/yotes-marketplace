@@ -1,6 +1,6 @@
 # Yotes Marketplace - Node.js-Express.js-Vue.js-MongoDB Project
 
-* Yotes Marketplace is a dynamic web application designed to facilitate the buying and selling of goods and services among users. Built with Vue 3 and TypeScript, it offers a user-friendly interface for managing posts, searching for items, and engaging in real-time chat with other users. This project showcases the power of Vue 3's Composition API and TypeScript's static typing for building scalable and maintainable web applications.
+* Yotes Marketplace is a social media dynamic web application designed to facilitate the buying and selling of goods and services among users. Built with Vue 3 and Node.js (TypeScript), it offers a user-friendly interface for managing posts, searching for items, and engaging in real-time chat with other users. This project showcases the power of Vue 3's Composition API and TypeScript's static typing for building scalable and maintainable web applications.
 * This project is now built specifically for the College of Idaho community. Please attach the copyright and credits.
 
 ## Features
