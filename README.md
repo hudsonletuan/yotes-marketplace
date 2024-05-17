@@ -7,7 +7,7 @@
 
 - **User Authentication**: Secure login and sign-up processes with OTP verification for new users.
 - **Post Management**: Users can create, edit, and delete their posts, including media attachments and captions.
-- **Real-time Chat**: Implemented using socket.IO, allowing users to message each other directly. (on development)
+- **Real-time Chat**: Implemented using Socket.IO, allowing users to message each other directly, see each other online/offline status, see messages' seen/unseen status, and see notifications of new messages.
 - **Search Functionality**: Users can search for posts based on various criteria such as username, caption, location, status, price, and date/time.
 - **User-specific Posts**: Displays posts created by a specific user.
 - **Accessibility and Performance**: Designed with accessibility in mind and optimized for performance.
