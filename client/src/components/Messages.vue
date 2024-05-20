@@ -28,6 +28,7 @@ const emit = defineEmits<{
     (e: 'view-post', postId: string): void;
     (e: 'chat-deleted', isDeletedConversationOpened: boolean): void;
     (e: 'open-media', mediaSrc: string): void;
+    (e: 'back-chatlist'): void;
 }>();
 
 const onOpenConversation = (conversation: any) => {
@@ -197,6 +198,7 @@ const sendMessage = (event: Event, postId: string, postUsernameCheck: string, po
             messageInput.value = '';
             scrollToBottom(postId);
         }
+        messageInput.style.height = '2.3rem';
     }
 };
 
@@ -277,32 +279,36 @@ const triggerFileInputClick = () => {
 };
 
 const selectedMedia = ref<File[]>([]);
-const objectURLs = ref<string[]>([]);
 const ImageReady = ref(true);
 const handleFileInputChange = async (event: Event, postId: string, postUsernameCheck: string, postConversationId: string) => {
     ImageReady.value = false;
     scrollToBottom(postId);
     selectedMedia.value = [];
-    objectURLs.value = [];
-    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-    const newFiles = Array.from((event.target as HTMLInputElement).files as FileList);
+    const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
+    const newFilesOriginal = Array.from((event.target as HTMLInputElement).files as FileList);
+    const newFiles = newFilesOriginal.map((file) => {
+        const fileName = file.name.toLowerCase();
+        const fileExtension = fileName.split('.').pop();
+        const newFileName = fileName.replace(`.${fileExtension}`, `.${fileExtension?.toLowerCase()}`);
+        return new File([file], newFileName, { type: file.type });
+    });
     if (!newFiles.length){
         ImageReady.value = true;
         return;
     };
     const validFiles = newFiles.filter((file) => {
         const isValidType = (file.type.startsWith('image/') && ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(file.type.split('/')[1])) || 
-        (file.type.startsWith('video/') && ['mp4'].includes(file.type.split('/')[1]));
+        (file.type.startsWith('video/') && ['mp4', 'webm', 'avi', 'quicktime'].includes(file.type.split('/')[1]));
         return isValidType && file.size <= MAX_FILE_SIZE;
     });
     const heicFiles = newFiles.filter((file) => file.name.toLocaleLowerCase().endsWith('.heic') || file.name.toLocaleLowerCase().endsWith('.heif'));
     const invalidFiles = newFiles.filter((file) => file.size > MAX_FILE_SIZE);
     if (invalidFiles.length) {
-        alert(`The following files exceed the maximum file size of 5MB: ${invalidFiles.map((file) => file.name).join(', ')}`);
+        alert(`The following files exceed the maximum file size of 20MB: ${invalidFiles.map((file) => file.name).join(', ')}`);
     }
     if (!validFiles.length && !heicFiles.length) {
         ImageReady.value = true;
-        alert('Invalid file(s) selected. Only jpg, jpeg, png, heic/heif, and mp4 are supported.')
+        alert('Invalid file(s) selected. Please select images or videos only.')
         return;
     };
     if (heicFiles.length > 0) {
@@ -316,12 +322,10 @@ const handleFileInputChange = async (event: Event, postId: string, postUsernameC
                 .then((convertedBlob) => {
                     const convertedFile = new File([convertedBlob as BlobPart], file.name.replace(/\.heic$|\.heif$/i, '.jpeg'), { type: 'image/jpeg' });
                     selectedMedia.value.push(convertedFile);
-                    const objectURL = URL.createObjectURL(convertedFile);
-                    objectURLs.value.push(objectURL);
                     resolve(convertedFile);
                 })
                 .catch((error) => {
-                    console.error(error);
+                    //console.error(error);
                     reject(error);
                 });
             });
@@ -330,8 +334,6 @@ const handleFileInputChange = async (event: Event, postId: string, postUsernameC
     }
     const compressionTasks = validFiles.map((file) => {
         if (file.type.startsWith('video/')) {
-            const objectURL = URL.createObjectURL(file);
-            objectURLs.value.push(objectURL);
             selectedMedia.value.push(file);
             return Promise.resolve(file);
         } else {
@@ -341,12 +343,10 @@ const handleFileInputChange = async (event: Event, postId: string, postUsernameC
                     success(result) {
                         const compressedFiles = new File([result], file.name, { type: file.type });
                         selectedMedia.value.push(compressedFiles);
-                        const objectURL = URL.createObjectURL(compressedFiles);
-                        objectURLs.value.push(objectURL);
                         resolve(compressedFiles);
                     },
                     error(error) {
-                        console.error(error.message);
+                        //console.error(error.message);
                         reject(error);
                     },
                 });
@@ -355,12 +355,6 @@ const handleFileInputChange = async (event: Event, postId: string, postUsernameC
     });
 
     const compressedFiles = await Promise.all(compressionTasks);
-    // selectedMedia.value = validFiles;
-
-    // validFiles.forEach((file) => {
-    //     const objectURL = URL.createObjectURL(file);
-    //     objectURLs.value.push(objectURL);
-    // });
 
     const formData = new FormData();
     selectedMedia.value.forEach((file) => {
@@ -416,9 +410,9 @@ const onMediaError = (event: Event, message: string) => {
 <template>
     <div>
         <div class="center">
-            <div class="contacts">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" height="50" width="50" viewBox="0 0 512 512">
-                    <path d="M256 48a208 208 0 1 1 0 416 208 208 0 1 1 0-416zm0 464A256 256 0 1 0 256 0a256 256 0 1 0 0 512zM175 175c-9.4 9.4-9.4 24.6 0 33.9l47 47-47 47c-9.4 9.4-9.4 24.6 0 33.9s24.6 9.4 33.9 0l47-47 47 47c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-47-47 47-47c9.4-9.4 9.4-24.6 0-33.9s-24.6-9.4-33.9 0l-47 47-47-47c-9.4-9.4-24.6-9.4-33.9 0z"/>
+            <div class="contacts messages-contacts">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" height="45" width="45" viewBox="0 0 512 512">
+                    <path d="M64 144a48 48 0 1 0 0-96 48 48 0 1 0 0 96zM192 64c-17.7 0-32 14.3-32 32s14.3 32 32 32H480c17.7 0 32-14.3 32-32s-14.3-32-32-32H192zm0 160c-17.7 0-32 14.3-32 32s14.3 32 32 32H480c17.7 0 32-14.3 32-32s-14.3-32-32-32H192zm0 160c-17.7 0-32 14.3-32 32s14.3 32 32 32H480c17.7 0 32-14.3 32-32s-14.3-32-32-32H192zM64 464a48 48 0 1 0 0-96 48 48 0 1 0 0 96zm48-208a48 48 0 1 0 -96 0 48 48 0 1 0 96 0z"/>
                 </svg>
                 <h2>CONTACTS</h2>
                 <div class="list-chat">
@@ -431,8 +425,8 @@ const onMediaError = (event: Event, message: string) => {
                         <div class="post-user-img" :style="`background-image: url(${$props.selectedConversation?.postUserId === currentUserId ? $props.selectedConversation?.selfUserImg : $props.selectedConversation?.postUserImg});`"></div>
                         <div class="post-username">{{ $props.selectedConversation?.postUserId === currentUserId ? $props.selectedConversation?.selfUsername : $props.selectedConversation?.postUsername }}</div>
                         <div v-if="userStatusStore.userStatuses[receiverUserId]">
-                            <div v-if="userStatusStore.userStatuses[receiverUserId].status === 'Online'" class="post-userstatus online">&#128905; {{ userStatusStore.userStatuses[receiverUserId].status }}</div>
-                            <div v-else-if="userStatusStore.userStatuses[receiverUserId].status === 'Offline'" class="post-userstatus offline">&#128905; {{ timeAgo(userStatusStore.userStatuses[receiverUserId].lastActive) }}</div>
+                            <div v-if="userStatusStore.userStatuses[receiverUserId].status === 'Online'" class="post-userstatus online">&#11044; {{ userStatusStore.userStatuses[receiverUserId].status }}</div>
+                            <div v-else-if="userStatusStore.userStatuses[receiverUserId].status === 'Offline'" class="post-userstatus offline">&#11044; {{ timeAgo(userStatusStore.userStatuses[receiverUserId].lastActive) }}</div>
                         </div>
                     </div>
                     <div class="view-post" @click="viewPost($props.selectedConversation!.postId)">
@@ -486,11 +480,16 @@ const onMediaError = (event: Event, message: string) => {
                 </div>
                 <div class="input">
                     <FaCamera @click="triggerFileInputClick" />
-                    <input id="file-input" type="file" accept="image/*, video/mp4" multiple @change="handleFileInputChange($event, $props.selectedConversation?.postId, postUsername, $props.selectedConversation?._id)" style="display: none" />
+                    <input id="file-input" type="file" accept="image/*, image/heic, image/heif, video/*" multiple @change="handleFileInputChange($event, $props.selectedConversation?.postId, postUsername, $props.selectedConversation?._id)" style="display: none" />
                     <FaLaugh @click="toggleEmojiPicker" />
                     <textarea :id="`messageInput-${$props.selectedConversation?.postId}`" placeholder="Type your message here!" @input="resizeTextarea" @keydown.enter="sendMessage($event, $props.selectedConversation?.postId, postUsername, $props.selectedConversation?._id)"></textarea>
                     <FaSend @click="sendMessage($event, $props.selectedConversation?.postId, postUsername, $props.selectedConversation?._id)" />
                 </div>
+            </div>
+            <div class="back-chatlist">
+                <button class="back-chatlist-btn" @click="$emit('back-chatlist')">
+                    <span>View All Messages</span>
+                </button>
             </div>
         </div>
     </div>
@@ -581,7 +580,7 @@ body, html {
 .contacts svg {
     position: absolute;
     top: 0.5rem;
-    left: 1.48rem;
+    left: 1.5rem;
     color: #656565;
     transition: color 200ms;
 }
@@ -702,7 +701,7 @@ body, html {
     flex-direction: column;
     justify-content: space-between;
     width: 24rem;
-    height: 38rem;
+    height: 35rem;
     z-index: 2;
     box-sizing: border-box;
     border-radius: 1rem;
@@ -736,6 +735,7 @@ body, html {
     border: solid 2px #999;
     border-radius: 2rem;
     transition: ease-in-out 200ms;
+    white-space: nowrap;
 }
 .view-post:hover {
     border: solid 2px white;
@@ -864,7 +864,7 @@ body, html {
     overflow-y: auto;
     resize: vertical;
 }
-.chat .input textarea:placeholder {
+.chat .input textarea::placeholder {
     color: #999;
 }
 .seen {
@@ -893,6 +893,9 @@ body, html {
     object-fit: contain;
     cursor: pointer;
 }
+.back-chatlist {
+    display: none;
+}
 @keyframes typing {
     0%, 75%, 100% {
         transform: translate(0, 0.25rem) scale(0.9);
@@ -904,4 +907,117 @@ body, html {
     }
 }
 
+@media screen and (max-width: 794px) {
+    .contacts {
+        display: none;
+    }
+    .view-post {
+        font-size: 0.8rem;
+    }
+    .back-chatlist {
+        display: block;
+        width: 24rem;
+    }
+    .back-chatlist button {
+        width: 100%;
+        height: 3rem;
+        background: #212529;
+        color: white;
+        border: solid 5px white;
+        border-radius: 1rem;
+        cursor: pointer;
+        margin-top: .1rem;
+    }
+    .back-chatlist button:hover {
+        background: white;
+        color: #212529;
+        transition: ease-in-out 200ms;
+    }
+    .back-chatlist button span {
+        font-size: 18px;
+        font-weight: bold;
+    }
+}
+@media screen and (max-width: 630px){
+    .emoji-picker {
+        position: absolute;
+        bottom: 3.5rem;
+        right: 3rem;
+        z-index: 3;
+    }
+}
+@media screen and (max-width: 450px) {
+    .center {
+        margin-right: -55px;
+    }
+    .contact .post-username {
+        font-size: 1rem;
+    }
+    .contact .post-userstatus {
+        font-size: 0.8rem;
+    }
+    .chat .input textarea::placeholder {
+        padding-top: 0.2rem;
+        font-size: 0.6rem;
+    }
+    .chat {
+        width: 22rem;
+    }
+    .chat .messages .message {
+        font-size: 0.8rem;
+    }
+    .back-chatlist button {
+        width: 22rem;
+    }
+}
+@media screen and (max-width: 350px) {
+    .center {
+        margin-right: -72px;
+    }
+    .chat {
+        width: 21rem;
+    }
+    .back-chatlist button {
+        width: 21rem;
+    }
+}
+@media screen and (max-height: 800px) {
+    .header-bar {
+        margin-top: -0.8rem;
+        margin-bottom: -1rem;
+    }
+    .chat {
+        height: 30rem;
+    }
+    .scroll-down-button {
+        top: 5rem;
+    }
+    .message-media-items img, .message-media-items video {
+        height: 200px;
+    }
+    .messages-contacts {
+        margin-top: -0.5rem;
+        height: 27rem;
+    }
+    .list-chat :deep(.chatlist-contacts) {
+        margin-top: -3rem;
+        height: 23rem;
+    }
+    .back-chatlist button {
+        height: 2.5rem;
+        border: 1px solid white;
+    }
+}
+@media screen and (max-height: 630px) {
+    .chat {
+        height: 26rem;
+    }
+    .message-media-items img, .message-media-items video {
+        height: 200px;
+    }
+    .back-chatlist button {
+        height: 2.5rem;
+        border: 1px solid white;
+    }
+}
 </style>

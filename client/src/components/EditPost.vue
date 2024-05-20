@@ -5,9 +5,7 @@ import Compressor from 'compressorjs';
 import heic2any from 'heic2any';
 
 const emit = defineEmits(['close-editpost', 'post-edited']);
-const closeEditPost = () => {
-    emit('close-editpost');
-};
+
 const username = computed(() => localStorage.getItem('username'));
 const userImg = computed(() => localStorage.getItem('userImg'));
 const userId = computed(() => localStorage.getItem('userId'));
@@ -26,9 +24,24 @@ const props = defineProps<{
     };
 }>();
 
-const selectedMedia = ref<File[]>([]);
-const existingMedia = ref<string[]>([]);
-const objectURLs = ref<string[]>([]);
+interface MediaFile {
+    key: string;
+    src: string;
+    type: string;
+}
+interface ImageFile {
+    key: string;
+    imageFile: File;
+}
+interface VideoFile {
+    src: string;
+    type: string;
+}
+
+const selectedMedia = ref<MediaFile[]>([]);
+const selectedImages = ref<ImageFile[]>([]);
+const selectedVideos = ref<VideoFile[]>([]);
+// const existingMedia = ref<string[]>([]);
 const hoverIndex = ref(-1);
 const topic = ref('');
 const caption = ref('');
@@ -37,20 +50,25 @@ const price = ref<number | null>(null);
 const showStatus = ref(false);
 const selectedStatus = ref('Available');
 const originalMediaUrls: string[] = props.post.uploaded.map((media: { media: string }) => media.media);
-const existingMediaUrls: string[] = props.post.uploaded.map((media: { media: string }) => media.media);
 
 const uploadingImages = ref(false);
 const handleMediaChange = async (event: Event) => {
     uploadingImages.value = true;
     const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-    const newFiles = Array.from((event.target as HTMLInputElement).files as FileList);
+    const newFilesOriginal = Array.from((event.target as HTMLInputElement).files as FileList);
+    const newFiles = newFilesOriginal.map((file) => {
+        const fileName = file.name.toLowerCase();
+        const fileExtension = fileName.split('.').pop();
+        const newFileName = fileName.replace(`.${fileExtension}`, `.${fileExtension?.toLowerCase()}`);
+        return new File([file], newFileName, { type: file.type });
+    });
     if (!newFiles.length){
-        uploadingImages.value = true;
+        uploadingImages.value = false;
         return;
     };
     const validFiles = newFiles.filter((file) => {
         const isValidType = (file.type.startsWith('image/') && ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(file.type.split('/')[1])) || 
-        (file.type.startsWith('video/') && ['mp4'].includes(file.type.split('/')[1]));
+        (file.type.startsWith('video/') && ['mp4', 'webm', 'avi', 'quicktime'].includes(file.type.split('/')[1]));
         return isValidType && file.size <= MAX_FILE_SIZE;
     });
     const heicFiles = newFiles.filter((file) => file.name.toLocaleLowerCase().endsWith('.heic') || file.name.toLocaleLowerCase().endsWith('.heif'));
@@ -60,7 +78,7 @@ const handleMediaChange = async (event: Event) => {
     }
     if (!validFiles.length && !heicFiles.length) {
         uploadingImages.value = false;
-        alert('Invalid file(s) selected. Only jpg, jpeg, png, heic/heif, and mp4 are supported.')
+        alert('Invalid file(s) selected. Please select images or videos only.')
         return;
     };
     if (heicFiles.length > 0) {
@@ -72,65 +90,77 @@ const handleMediaChange = async (event: Event) => {
             })
             .then((convertedBlob) => {
                 const convertedFile = new File([convertedBlob as BlobPart], file.name.replace(/\.heic$|\.heif$/i, '.jpeg'), { type: 'image/jpeg' });
-                selectedMedia.value.push(convertedFile);
+                const key = convertedFile.name;
                 const objectURL = URL.createObjectURL(convertedFile);
-                objectURLs.value.push(objectURL);
+                selectedMedia.value.push({ key, src: objectURL, type: 'image/jpeg' });
+                selectedImages.value.push({ key, imageFile: convertedFile });
             })
             .catch((error) => {
-                console.error(error);
+                //console.error(error);
             });
         });
         await Promise.all(conversionPromises);
     }
+    const videoFiles = validFiles.filter((file) => file.type.startsWith('video/'));
+    if (videoFiles.length > 0) {
+        const formData = new FormData();
+        formData.append('userId', userId.value ? userId.value : '');
+        formData.append('username', username.value ? username.value : '');
+        videoFiles.map((file) => {
+            formData.append('media', file);
+        });
+        const response = await axios.post('/api/movtomp4', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        });
+        const convertedFiles = response.data.media;
+        convertedFiles.forEach((file: any) => {
+            const key = file.media;
+            selectedMedia.value.push({ key, src: file.media, type: 'video/mp4' });
+            selectedVideos.value.push({ src: file.media, type: 'video/mp4' });
+        });
+    }
     validFiles.forEach((file) => {
-        if (file.type.startsWith('video/')) {
-            const objectURL = URL.createObjectURL(file);
-            objectURLs.value.push(objectURL);
-            selectedMedia.value.push(file);
-        } else {
+        if (file.type.startsWith('image/')) {
             new Compressor(file, {
                 quality: 0.3,
                 success(result) {
                     const compressedFiles = new File([result], file.name, { type: file.type });
-                    selectedMedia.value.push(compressedFiles);
                     const objectURL = URL.createObjectURL(compressedFiles);
-                    objectURLs.value.push(objectURL);
+                    const key = `${compressedFiles.name}${compressedFiles.name.split('.').pop()}`;
+                    selectedMedia.value.push({ key, src: objectURL, type: file.type });
+                    selectedImages.value.push({ key, imageFile: compressedFiles });
                 },
                 error(error) {
-                    console.error(error.message);
+                    //console.error(error.message);
                 },
             });
         }
     });
-
-    // selectedMedia.value = [...selectedMedia.value, ...validFiles];
-
-    // validFiles.forEach((file) => {
-    //     const objectURL = URL.createObjectURL(file);
-    //     objectURLs.value.push(objectURL);
-    // });
     uploadingImages.value = false;
 };
 
-const getObjectURL = (index: number) => objectURLs.value[index];
-
 const mediaKey = ref(0);
 
-const removeMedia = (file: File | string) => {
+const removeMedia = (key: string) => {
     const scrollLeft = (mediaItems.value as HTMLElement).scrollLeft;
 
-    const index = selectedMedia.value.findIndex((f) => f === file)
+    const index = selectedMedia.value.findIndex((f) => f.key === key);
     if (index !== -1) {
         selectedMedia.value.splice(index, 1);
-        objectURLs.value.splice(index + existingMedia.value.length, 1);
-    } else {
-        const index = existingMedia.value.findIndex((f) => f === file)
-        if (index !== -1) {
-        existingMedia.value.splice(index, 1);
-        objectURLs.value.splice(index, 1);
-        existingMediaUrls.splice(index, 1);
+        const indexImage = selectedImages.value.findIndex((f) => f.key === key);
+        if (indexImage !== -1) {
+            selectedImages.value.splice(indexImage, 1);
         }
     }
+    // } else {
+    //     const index = existingMedia.value.findIndex((f) => f === key);
+    //     if (index !== -1) {
+    //     existingMedia.value.splice(index, 1);
+    //     existingMediaUrls.splice(index, 1);
+    //     }
+    // }
 
     nextTick(() => {
         const container = mediaItems.value as HTMLElement;
@@ -189,28 +219,29 @@ const handleKeyPress = (event: KeyboardEvent) => {
 };
 
 const hasChanges = computed(() => {
-    // console.log(topic.value !== props.post.topic, 
-    //     caption.value !== props.post.caption, 
-    //     location.value !== props.post.location, 
-    //     price.value !== props.post.price, 
-    //     selectedStatus.value !== props.post.status, 
-    //     JSON.stringify(existingMediaUrls) !== JSON.stringify(props.post.uploaded.map((media) => media.media)), 
-    //     selectedMedia.value.length > 0, existingMedia.value.length !== props.post.uploaded.length);
+    const selectedMediaUrls = selectedMedia.value.map((media) => media.src);
+    // console.log(topic.value !== props.post.topic);
+    // console.log(caption.value !== props.post.caption);
+    // console.log(location.value !== props.post.location);
+    // console.log(price.value !== props.post.price);
+    // console.log(selectedStatus.value !== props.post.status);
+    // console.log(JSON.stringify(selectedMediaUrls) !== JSON.stringify(props.post.uploaded.map((media) => media.media)));
+
     return (
         topic.value !== props.post.topic ||
         caption.value !== props.post.caption ||
         location.value !== props.post.location ||
         price.value !== props.post.price ||
         selectedStatus.value !== props.post.status ||
-        JSON.stringify(existingMediaUrls) !== JSON.stringify(props.post.uploaded.map((media) => media.media)) ||
-        selectedMedia.value.length > 0 ||
-        existingMedia.value.length !== props.post.uploaded.length
+        JSON.stringify(selectedMediaUrls) !== JSON.stringify(props.post.uploaded.map((media) => media.media))
     );
 });
 
 const uploading = ref(false);
 const postEditPost = async () => {
-    const removedMediaUrls = originalMediaUrls.filter((url) => !existingMediaUrls.includes(url));
+    const selectedMediaUrls = selectedMedia.value.map((media) => media.src);
+    const removedMediaUrls = originalMediaUrls.filter((url) => !selectedMediaUrls.includes(url));
+
     const formData = new FormData();
     formData.append('userId', userId.value ? userId.value : '');
     formData.append('_id', props.post._id);
@@ -219,7 +250,20 @@ const postEditPost = async () => {
     formData.append('status', selectedStatus.value);
     formData.append('price', price.value?.toString() || '');
     formData.append('location', location.value);
-    formData.append('existingMediaUrls', JSON.stringify(existingMediaUrls));
+
+    const existingMediaUrls = originalMediaUrls.filter((url) => selectedMediaUrls.includes(url));
+    existingMediaUrls.forEach((url) => {
+        formData.append('selectedUrls', url);
+    });
+    const videoUrls = selectedVideos.value.map((video) => video.src);
+    await videoUrls.forEach((video) => {
+        if (!selectedMediaUrls.includes(video)) {
+            removedMediaUrls.push(video);
+        } else {
+            formData.append('selectedUrls', video);
+        }
+    });
+
     formData.append('removedMediaUrls', JSON.stringify(removedMediaUrls));
 
     if (caption.value.split(' ').length < 5) {
@@ -235,16 +279,12 @@ const postEditPost = async () => {
         formData.append('topic', topic.value);
     }
 
-    const newMedia = selectedMedia.value.filter((file) => {
-        const fileName = file.name; // Extract the file name from the file object
-        return !existingMedia.value.includes(fileName);
-    });
-
+    const newMedia = selectedImages.value.map((image) => image.imageFile);
     newMedia.forEach((file) => {
         formData.append('media', file);
     });
 
-    const totalMediaFiles = originalMediaUrls.length + newMedia.length - removedMediaUrls.length;
+    const totalMediaFiles = selectedMedia.value.length;
     if (totalMediaFiles > 10) {
         alert('You can only upload up to 10 media files');
         return;
@@ -259,14 +299,14 @@ const postEditPost = async () => {
         });
 
         const updatedPost = response.data.post;
-        existingMedia.value = updatedPost.versions[updatedPost.versions.length - 1].uploaded.map((media: { media: string }) => media.media);
+        //selectedMedia.value = updatedPost.versions[updatedPost.versions.length - 1].uploaded.map((media: { media: string }) => media.media);
         selectedMedia.value = [];
 
         // alert('Post edited successfully!');
         emit('post-edited');
         window.location.reload();
     } catch (error) {
-        console.error(error);
+        //console.error(error);
     }
 };
 
@@ -308,6 +348,18 @@ const isVideo = (fileUrl: string): boolean => {
     return videoExtensions.includes(fileExtension || '');
 };
 
+const closeEditPost = async () => {
+    if (uploadingImages.value) {
+        alert('Please wait for the media files to finish uploading');
+        return;
+    }
+    if (selectedVideos.value.length) {
+        const videoUrls = selectedVideos.value.map((video) => video.src);
+        await axios.post('/api/deletemedia', { videoUrls });
+    }
+    emit('close-editpost');
+};
+
 onMounted(() => {
     topic.value = props.post.topic;
     caption.value = props.post.caption;
@@ -316,9 +368,14 @@ onMounted(() => {
     selectedStatus.value = props.post.status;
 
     props.post.uploaded.forEach((file) => {
+        const key = file.media;
         const objectURL = file.media;
-        objectURLs.value.push(objectURL);
-        existingMedia.value.push(objectURL);
+        if (isImage(objectURL)) {
+            const fileTypes = objectURL.split('.').pop()?.toLowerCase();
+            selectedMedia.value.push({ key, src: objectURL, type: `image/${fileTypes}` });
+        } else if (isVideo(objectURL)) {
+            selectedMedia.value.push({ key, src: objectURL, type: 'video/mp4' });
+        }
     });
 });
 </script>
@@ -340,42 +397,48 @@ onMounted(() => {
             <div class="caption-input">
                 <textarea placeholder="Write a caption..." v-model="caption" />
             </div>
+            <!-- <div style="color: black;">{{ JSON.stringify(selectedMedia.value((map) => map.src)) }}</div> -->
+            <!-- <div style="color: black;">{{ JSON.stringify(selectedMedia) }}</div> -->
             <div class="media-preview">
-                <button class="nav-btn" @click="scrollMedia(-1)" :disabled="![...existingMedia, ...selectedMedia].length || ($refs.mediaItems as HTMLDivElement).scrollLeft <= 0">&#10094;</button>
+                <button class="nav-btn" @click="scrollMedia(-1)" :disabled="!selectedMedia.length || ($refs.mediaItems as HTMLDivElement).scrollLeft <= 0">&#10094;</button>
                 <div class="media-items" ref="mediaItems" :key="mediaKey">
-                    <div v-for="(file, index) in [...existingMedia, ...selectedMedia]" :key="index" class="media-item-wrapper" @mouseover="hoverIndex = index" @mouseleave="hoverIndex = -1">
+                    <div v-for="(item, index) in selectedMedia" :key="`${item.key}`" class="media-item-wrapper" @mouseover="hoverIndex = index" @mouseleave="hoverIndex = -1">
                         <div class="media-item">
-                            <img v-if="isFile(file) && file.type.startsWith('image/')" :src="getObjectURL(index)" alt="Preview" />
+                            <!-- <img v-if="isFile(file) && file.type.startsWith('image/')" :src="getObjectURL(index)" alt="Preview" />
                             <video v-else-if="isFile(file) && file.type.startsWith('video/')" controls>
                                 <source :src="getObjectURL(index)" :type="file.type">
                                 Your browser does not support the video tag.
-                            </video>
-                            <img v-else-if="typeof file === 'string' && isImage(file)" :src="file" alt="Preview" />
-                            <video v-else-if="typeof file === 'string' && isVideo(file)" controls>
-                                <source :src="file" :type="getMimeType(file)">
+                            </video> -->
+                            <img v-if="item.type.startsWith('image/')" :src="item.src" alt="Preview" />
+                            <video v-else-if="item.type.startsWith('video/')" controls>
+                                <source :src="item.src" type="video/mp4">
                                 Your browser does not support the video tag.
                             </video>
                         </div>
-                        <button class="remove-btn" @click="removeMedia(file)" :class="hoverIndex === index ? 'visible' : 'hidden'">&#10006;</button>
+                        <button class="remove-btn" @click="removeMedia(item.key)" :class="hoverIndex === index ? 'visible' : 'hidden'">&#10006;</button>
                     </div>
                 </div>
-                <button class="nav-btn" @click="scrollMedia(1)" :disabled="![...existingMedia, ...selectedMedia].length || ($refs.mediaItems as HTMLElement).scrollLeft >= ($refs.mediaItems as HTMLElement).scrollWidth - ($refs.mediaItems as HTMLElement).clientWidth">&#10095;</button>
+                <button class="nav-btn" @click="scrollMedia(1)" :disabled="!selectedMedia.length || ($refs.mediaItems as HTMLElement).scrollLeft >= ($refs.mediaItems as HTMLElement).scrollWidth - ($refs.mediaItems as HTMLElement).clientWidth">&#10095;</button>
             </div>
             <div class="buttons">
                 <div class="sub-buttons-add">
-                    <label class="btn label-add-media" for="media-upload">Add Media</label>
-                    <input type="file" accept="image/*, video/mp4" id="media-upload" multiple style="display: none" @change="handleMediaChange" />
-                    <input class="add-location" type="text" placeholder="Add Location" v-model="location" />
-                    <div class="dropdown-container">
-                        <button class="btn btn-status" @click="showStatus = !showStatus"><span v-if="selectedStatus">{{ selectedStatus }}</span></button>
-                        <ul v-if="showStatus" class="dropdown">
-                            <li @click="selectStatus('Available')">Available</li>
-                            <li @click="selectStatus('Sold')">Sold</li>
-                            <li @click="selectStatus('Not Available')">Not Available</li>
-                            <li @click="selectStatus('Looking For...')">Looking For...</li>
-                        </ul>
+                    <div class="media-location">
+                        <label class="btn label-add-media" for="media-upload">Add Media</label>
+                        <input type="file" accept="image/*, image/heic, image/heif, video/mp4" id="media-upload" multiple style="display: none" @change="handleMediaChange" />
+                        <input class="add-location" type="text" placeholder="Add Location" v-model="location" />
                     </div>
+                    <div class="status-price">
+                        <div class="dropdown-container">
+                            <button class="btn btn-status" @click="showStatus = !showStatus"><span v-if="selectedStatus">{{ selectedStatus }}</span></button>
+                            <ul v-if="showStatus" class="dropdown">
+                                <li @click="selectStatus('Available')">Available</li>
+                                <li @click="selectStatus('Sold')">Sold</li>
+                                <li @click="selectStatus('Not Available')">Not Available</li>
+                                <li @click="selectStatus('Looking For...')">Looking For...</li>
+                            </ul>
+                        </div>
                     <input class="price" type="text" inputmode="decimal" v-model="formattedPrice" @keypress="handleKeyPress" placeholder="Price" />
+                    </div>
                 </div>
                 <div class="sub-buttons-finish">
                     <button class="btn btn-close" @click="closeEditPost">Discard</button>
@@ -614,6 +677,9 @@ onMounted(() => {
 .sub-buttons-add label, .btn-status span, .price {
     font-weight: bold;
 }
+.status-price {
+    display: flex;
+}
 .price:placeholder-shown {
     font-weight: normal;
 }
@@ -692,5 +758,92 @@ onMounted(() => {
 }
 .btn-post:hover {
     background-color: #0066d2;
+}
+
+@media screen and (max-width: 690px) {
+    .edit-post-backdrop, .edit-post-container, .topic-input, .caption-input, .buttons {
+        width: 500px;
+    }
+    .media-preview img, .media-preview video {
+        height: 150px;
+    }
+    .sub-buttons-add {
+        white-space: nowrap;
+    }
+    .topic-input input {
+        font-size: 16px;
+    }
+    .caption-input textarea {
+        height: 5em;
+        font-size: 14px;
+    }
+    .sub-buttons-add .label-add-media, .sub-buttons-add span, .sub-buttons-add input, .sub-buttons-finish button {
+        font-size: 12px;
+    }
+    .add-location {
+        width: 100px;
+    }
+    .price {
+        width: 60px;
+    }
+    .media-items {
+        height: 170px;
+    }
+}
+@media screen and (max-width: 600px) {
+    .edit-post-backdrop, .edit-post-container, .topic-input, .caption-input, .buttons {
+        width: 400px;
+    }
+    .media-preview img, .media-preview video {
+        height: 120px;
+    }
+    .sub-buttons-add {
+        white-space: nowrap;
+    }
+    .media-location, .status-price {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        align-items: center;
+    }
+    .media-location .label-add-media, .media-location input, .status-price .btn-status, .status-price input {
+        text-align: center;
+        width: 98px;
+        padding: 5px 10px;
+    }
+    .media-items {
+        height: 140px;
+    }
+}
+@media screen and (max-width: 500px) {
+    .edit-post-backdrop, .edit-post-container, .topic-input, .caption-input, .buttons {
+        width: 300px;
+    }
+    .media-preview img, .media-preview video {
+        height: 100px;
+    }
+    .sub-buttons-add {
+        white-space: nowrap;
+    }
+    .sub-buttons-finish {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        align-items: center;
+    }
+    .media-location .label-add-media, .media-location input, .status-price .btn-status, .status-price input {
+        width: 98px;
+        padding: 5px 10px;
+    }
+    .btn-close, .btn-post {
+        width: 60px;
+        padding: 5px 10px;
+    }
+    .buttons {
+        align-items: center;
+    }
+    .media-items {
+        height: 110px;
+    }
 }
 </style>

@@ -2,6 +2,7 @@
 import { ref, onMounted, reactive, computed, onBeforeUnmount } from 'vue';
 import { socket } from '../socket';
 import axios from 'axios';
+import { useRoute } from 'vue-router';
 import BiPencil from './svgs/BiPencil.vue';
 import BiTrash from './svgs/BiTrash.vue';
 import BiFlag from './svgs/BiFlag.vue';
@@ -15,7 +16,10 @@ const closeSearchPost = () => {
 
 const props = defineProps<{
     searchInputValue: string;
+    searchCategory: string;
 }>();
+
+const route = useRoute();
 
 const currentUser = localStorage.getItem('username');
 const currentUserId = localStorage.getItem('userId');
@@ -107,7 +111,7 @@ const fetchPosts = async () => {
             hasMorePosts.value = false;
         }
     } catch (error) {
-        console.error('Failed to fetch posts:', error);
+        //console.error('Failed to fetch posts:', error);
     } finally {
         isFetching.value = false;
         isLoading.value = false;
@@ -209,6 +213,7 @@ onMounted(() => {
     if (postContainer) {
         postContainer.addEventListener('scroll', handleScroll);
     }
+
 });
 
 onBeforeUnmount(() => {
@@ -221,12 +226,21 @@ onBeforeUnmount(() => {
 
 const searchQuery = ref('');
 const filteredPosts = computed(() => {
+    const postsToSearch = ref<any[]>([]);
     const queryWords = searchQuery.value.toLowerCase().split(/\s+/);
-    queryWords.push(props.searchInputValue.toLowerCase());
-    return posts.value.filter((post) => {
+    if (props.searchCategory === "postId") {
+        postsToSearch.value = posts.value.filter((post) => post._id === props.searchInputValue);
+    } else if (props.searchCategory === "userId") {
+        postsToSearch.value = posts.value.filter((post) => post.userId === props.searchInputValue);
+    } else {
+        postsToSearch.value = posts.value;
+        queryWords.push(props.searchInputValue.toLowerCase());
+    }
+    return postsToSearch.value.filter((post) => {
         const idMatch = queryWords.every((word) => post._id.toLowerCase().includes(word));
         const userIdMatch = queryWords.every((word) => post.userId.toLowerCase().includes(word));
         const usernameMatch = queryWords.every((word) => post.username.toLowerCase().includes(word));
+        const topicMatch = queryWords.every((word) => post.topic.toLowerCase().includes(word));
         const captionMatch = queryWords.every((word) => post.caption.toLowerCase().includes(word));
         const locationMatch = post.location ? queryWords.every((word) => post.location.toLowerCase().includes(word)) : false;
         const statusMatch = queryWords.every((word) => post.status.toLowerCase().includes(word));
@@ -237,6 +251,7 @@ const filteredPosts = computed(() => {
         idMatch ||
         userIdMatch ||
         usernameMatch ||
+        topicMatch ||
         captionMatch ||
         locationMatch ||
         statusMatch ||
@@ -300,7 +315,7 @@ const sendMessage = (event: Event, postId: string, postUsernameCheck: string, po
 <template>
     <div class="wrapper">
         <div class="searchpost-header">
-            <div class="search-bar">
+            <div :style="{ visibility: props.searchCategory === 'postId' ? 'hidden' : 'visible' }" class="search-bar">
                 <input type="search" placeholder="Search ..." id="searchInput" v-model="searchQuery">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
                     <path fill="currentColor" d="m226.83 221.17l-52.7-52.7a84.1 84.1 0 1 0-5.66 5.66l52.7 52.7a4 4 0 0 0 5.66-5.66M36 112a76 76 0 1 1 76 76a76.08 76.08 0 0 1-76-76" />
@@ -314,7 +329,7 @@ const sendMessage = (event: Event, postId: string, postUsernameCheck: string, po
                     <div class="post-user">
                         <img :src="post.userImg ? post.userImg : 'https://marketplace.tuanle.top/yotes-logo.png'" alt="profile" />
                         <div class="post-user-info">
-                            <h3 style="color: white;" @click="$emit('open-userpost', post.userId)">{{ post.username }}</h3>
+                            <h3 style="color: white;" @click="$emit('open-userpost', post.userId, 'userId')">{{ post.username }}</h3>
                             <h5 style="color: #D5D5D5;">{{ postModifiedDate(post) }}</h5>
                         </div>
                     </div>
@@ -359,23 +374,27 @@ const sendMessage = (event: Event, postId: string, postUsernameCheck: string, po
                 </div>
                 <div class="bottom-bar">
                     <div class="post-details">
-                        <p class="post-detail-price">{{ post.price ? '$' + post.price : 'Free' }}</p>
-                        <p class="post-detail-status" :class="{
-                            'available': post.status === 'Available',
-                            'sold': post.status === 'Sold',
-                            'not-available': post.status === 'Not Available',
-                            'looking-for': post.status === 'Looking For...'
-                        }">{{ post.status }}</p>
-                        <p class="post-detail-location" v-if="post.location">at {{ post.location }}</p>
+                        <div class="detail-price-status">
+                            <p class="post-detail-price">{{ post.price ? '$' + post.price : 'Free' }}</p>
+                            <p class="post-detail-status" :class="{
+                                'available': post.status === 'Available',
+                                'sold': post.status === 'Sold',
+                                'not-available': post.status === 'Not Available',
+                                'looking-for': post.status === 'Looking For...'
+                            }">{{ post.status }}</p>
+                        </div>
+                        <div class="location-div">
+                            <p class="post-detail-location" v-if="post.location">at {{ post.location }}</p>
+                        </div>
                     </div>
                     <div :id="`send-message-${post._id}`" class="send-message" v-if="post.username !== currentUser && currentUser" @click="handleDirectMessage(post)">
-                        <p class="btn-mess btn-message">Send Message 
+                        <p class="btn-mess btn-message"><span>Send Message </span>
                             <Send />
                         </p>
                     </div>
                     <div :id="`message-action-${post._id}`" class="message-action" style="display: none;">
                         <button class="btn btn-close" @click="handleDirectMessage(post)">Discard</button>
-                        <p class="btn-mess btn-send-message" @click="sendMessage($event, post._id, post.username, postChatDict[post._id][0])">Send
+                        <p class="btn-mess btn-send-message" @click="sendMessage($event, post._id, post.username, postChatDict[post._id][0])"><span>Send</span>
                             <FaSend />
                         </p>
                     </div>
@@ -400,8 +419,9 @@ const sendMessage = (event: Event, postId: string, postUsernameCheck: string, po
     left: 50%;
     transform: translate(-50%, -50%);
     display: flex;
-    justify-content: flex-end;
-    align-items: flex-start;
+    /* justify-content: flex-end;
+    align-items: flex-start; */
+    justify-content: center;
     background-color: #212529;
     border-radius: 30px;
     padding-top: 5px;
@@ -412,15 +432,14 @@ const sendMessage = (event: Event, postId: string, postUsernameCheck: string, po
     flex-direction: column;
     align-items: center;
     height: 84vh;
-    width: 100vh;
+    width: 100%;
     position: fixed;
     padding: 50px 0 10px 0;
 }
 .searchpost-header {
     display: flex;
     width: 90%;
-    padding: 6px 65px 5px 10px;
-    margin-right: 20px;
+    padding: 6px 45px 5px 30px;
     justify-content: space-between;
     align-items: center;
     position: absolute;
@@ -430,7 +449,7 @@ const sendMessage = (event: Event, postId: string, postUsernameCheck: string, po
     z-index: 1;
 }
 .search-bar {
-    width: 40%;
+    width: 50%;
     height: 40px;
     background-color: #fff5;
     padding: 0 .8rem;
@@ -449,7 +468,6 @@ const sendMessage = (event: Event, postId: string, postUsernameCheck: string, po
     color: #212529;
     width: 2.5em;
     height: 2.5em;
-    margin-left: 10px;
 }
 .search-bar input {
     color: black;
@@ -480,7 +498,7 @@ const sendMessage = (event: Event, postId: string, postUsernameCheck: string, po
     margin-top: -5px;
 }
 .post {
-    width: 600px;
+    width: 90%;
     border: solid 1px white;
     padding: 10px;
     border-radius: 10px;
@@ -569,11 +587,15 @@ const sendMessage = (event: Event, postId: string, postUsernameCheck: string, po
     display: flex;
     gap: 10px;
 }
+.detail-price-status {
+    display: flex;
+    gap: 5px;
+}
 .bottom-bar {
     display: flex;
-    align-items: center;
+    align-items: start;
     justify-content: space-between;
-    margin-top: 10px;
+    margin-top: 15px;
     white-space: nowrap;
 }
 .post-detail-price {
@@ -617,6 +639,9 @@ const sendMessage = (event: Event, postId: string, postUsernameCheck: string, po
     align-items: center;
     justify-content: center;
     gap: 5px;
+}
+.btn-send-message span {
+    font-weight: bold;
 }
 .available {
     background-color: #84ff84;
@@ -721,9 +746,9 @@ const sendMessage = (event: Event, postId: string, postUsernameCheck: string, po
     flex-basis: 4rem;
     flex-shrink: 0;
     display: flex;
-    align-items: center;
     justify-content: center;
     padding: 0 0.5rem 0 1.5rem;
+    margin-top: -0.67rem;
 }
 .bottom-bar .message-action svg {
     height: 20px;
@@ -731,6 +756,12 @@ const sendMessage = (event: Event, postId: string, postUsernameCheck: string, po
     cursor: pointer;
     transition: fill 200ms;
     margin: 0 0.1rem;
+}
+.bottom-bar .send-message {
+    margin-top: -0.8em;
+}
+.bottom-bar .send-message span {
+    font-weight: bold;
 }
 .btn-close {
     padding: 10px;
@@ -746,5 +777,168 @@ const sendMessage = (event: Event, postId: string, postUsernameCheck: string, po
 }
 .btn-close:hover {
     background-color: #cd0000;
+}
+
+@media screen and (max-height: 800px) and (min-width: 600px) {
+    .post {
+        width: 90%;
+    }
+    .post-head {
+        margin-bottom: 3px;
+    }
+    .post-topic p {
+        font-size: 16px;
+    }
+    .post-caption p {
+        font-size: 14px;
+    }
+    .media-post img, .media-post video {
+        height: 180px;
+    }
+    .media-post-item {
+        min-height: 180px;
+    }
+    .post-detail-price, .post-detail-status, .post-detail-location {
+        margin-top: -10px;
+        font-size: 14px;
+    }
+    /* .post:last-child {
+        margin-bottom: 2em;
+    } */
+    .loading {
+        margin-bottom: 2em;
+    }
+
+    .bottom-bar .message-action {
+        padding: 0 0.5rem 0 1.5rem;
+        margin-left: -4.5rem;
+    }
+}
+@media screen and (max-height: 950px) and (max-width: 600px) {
+    .post-head {
+        margin-bottom: 3px;
+    }
+    .post-topic p {
+        font-size: 16px;
+    }
+    .post-caption p {
+        font-size: 14px;
+    }
+    .media-post img, .media-post video {
+        height: 180px;
+    }
+    .media-post-item {
+        min-height: 180px;
+    }
+    .post-detail-price, .post-detail-status, .post-detail-location {
+        margin-top: -10px;
+        font-size: 14px;
+    }
+    /* .post:last-child {
+        margin-bottom: 7em;
+    } */
+    .loading {
+        margin-bottom: 7em;
+    }
+
+    .scroll-down-button {
+        top: 5rem;
+    }
+    .message-media-items img, .message-media-items video {
+        height: 200px;
+    }
+}
+@media screen and (max-width: 1025px) {
+    .wrapper {
+        width: 90vw;
+        margin-left: 0rem;
+    } 
+}
+@media screen and (max-width: 675px) {
+    .wrapper {
+        width: 90vw;
+        margin-left: -0.5rem;
+    }
+    .bottom-bar .message-action {
+        padding: 0rem 0rem 0 1.5rem;
+        margin-left: -150px;
+    }
+}
+@media screen and (max-width: 600px) {
+    .post-user-info {
+        font-size: 12px;
+        margin-left: -5px;
+    }
+    .location-div {
+        left: 0;
+    }
+    .bottom-bar .message-action button {
+        padding: 0 10px;
+    }
+    .bottom-bar .send-message span {
+        display: none;
+    }
+    .bottom-bar .message-action span {
+        display: none;
+    }
+    .bottom-bar .message-action button, .bottom-bar .message-action p {
+        font-size: 10px;
+    }
+    .bottom-bar .message-action svg {
+        height: 20px;
+    }
+    .post-head {
+        margin-bottom: 3px;
+    }
+    .post-topic p {
+        font-size: 14px;
+    }
+    .post-caption p {
+        font-size: 12px;
+    }
+    .media-post img, .media-post video {
+        height: 150px;
+    }
+    .media-post-item {
+        min-height: 150px;
+    }
+    .post-details {
+        flex-direction: column;
+        flex-wrap: wrap;
+    }
+    .detail-price-status {
+        display: flex;
+        flex-direction: row;
+        margin-bottom: 5px;
+    }
+    .location-div {
+        flex-basis: 100%;
+    }
+    .post-detail-price, .post-detail-status, .post-detail-location {
+        margin-top: -10px;
+        font-size: 10px;
+    }
+    .btn-message {
+        padding: 1px 6px 3px 6px;
+    }
+    .btn-message svg {
+        height: 18px;
+    }
+    .message-input input {
+        height: 30px;
+        font-size: 12px;
+    }
+}
+@media screen and (max-width: 431px) {
+    .wrapper {
+        margin-left: 0rem;
+    }
+    .post-user-info {
+        flex-direction: column;
+    }
+    .message-input input {
+        height: 25px;
+        font-size: 10px;
+    }
 }
 </style>

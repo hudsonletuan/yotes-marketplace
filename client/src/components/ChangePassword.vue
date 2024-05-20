@@ -51,7 +51,7 @@ const changePassword = async () => {
             alert((error as any).response.data.message);
         } else {
             alert('Password change failed');
-            console.error('Password change failed:', error);
+            //console.error('Password change failed:', error);
         }
     }
 };

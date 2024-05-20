@@ -33,15 +33,17 @@ const handleLogoClick = () => {
 };
 
 const searchInputValue = ref(props.searchInputValueReset);
-const handleSearch = () => {
-    if (searchInputValue.value) {
-        emit('open-searchpost', searchInputValue.value);
+const searchCategory = ref('');
+const handleSearch = (searchInputValueToGo: string, searchCategoryToGo: string) => {
+    if (searchInputValueToGo) {
+        emit('open-searchpost', searchInputValueToGo, searchCategoryToGo);
     }
 };
 
 const handleViewPost = (postId: string) => {
     searchInputValue.value = postId;
-    handleSearch();
+    searchCategory.value = 'postId';
+    handleSearch(searchInputValue.value, searchCategory.value);
 };
 
 watch(() => props.searchInputValueReset, (newValue: any) => {
@@ -69,8 +71,15 @@ const handleOpenConversation = (conversation: any) => {
 };
 
 const handleConversationClick = (conversation: any) => {
-    // console.log('conversation clicked', conversation);
+    //console.log('conversation clicked', conversation);
     selectedConversation.value = conversation;
+};
+
+const handleBackChatList = () => {
+    setTimeout(() => {
+        showChatList.value = true;
+        showConversation.value = false;
+    }, 100);
 };
 
 const handleChatDeleted = (isDeletedConversationOpened: boolean) => {
@@ -185,42 +194,43 @@ const handleOpenMedia = (mediaUrl: string) => {
         <div class="logo">
             <img src="../assets/branding.png" alt="Yotes Marketplace" @click="handleLogoClick" />
         </div>
-        <div class="new-post">
+        <div v-if="userId" class="new-post">
             <button @click="$emit('open-newpost')">
                 <PlusBox />
-                New Post
+                <span>New Post</span>
             </button>
         </div>
         <div class="grid-view" v-if="!isGridView">
             <button @click="isGridView = true">
                 <GridView />
-                View As Grid
+                <span>View As Grid (soon)</span>
             </button>
         </div>
         <div class="list-view" v-if="isGridView">
             <button @click="isGridView = false">
                 <ListView />
-                View As List
+                <span>View As List (soon)</span>
             </button>
         </div>
         <div class="search-bar">
-            <input type="search" placeholder="Search ..." id="searchInput" v-model="searchInputValue" @keyup.enter="handleSearch">
-            <svg @click="handleSearch" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+            <input type="search" placeholder="Search ..." id="searchInput" v-model="searchInputValue" @keyup.enter="handleSearch(searchInputValue, 'regular')">
+            <svg @click="handleSearch(searchInputValue, 'regular')" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
                 <path fill="currentColor" d="m226.83 221.17l-52.7-52.7a84.1 84.1 0 1 0-5.66 5.66l52.7 52.7a4 4 0 0 0 5.66-5.66M36 112a76 76 0 1 1 76 76a76.08 76.08 0 0 1-76-76" />
             </svg>
         </div>
         <div class="profile" @click="handleProfileClick">
             <img :src="userImg ?? 'https://marketplace.tuanle.top/yotes-logo.png'" alt="profile" />
+            <p v-if="!username">Login/Sign Up</p>
             <h3>{{ username ? username : 'Login/Sign Up' }}</h3>
         </div>
         <div v-if="username" class="message-group" id="chat-list">
             <button @click="handleShowChatList">
                 <ChatIcon />
                 <p v-if="totalUnseenMessage.total > 0" style="font-weight: bold;">{{ totalUnseenMessage.total }}</p>
-                Messages
+                <span>Messages</span>
             </button>
             <ChatList v-if="showChatList" :show-chat-list="showChatList" @open-conversation="handleOpenConversation" />
-            <Messages v-if="showConversation && selectedConversation" :selected-conversation="selectedConversation" @update:selected-conversation="handleConversationClick" @view-post="handleViewPost" @chat-deleted="handleChatDeleted" @open-media="handleOpenMedia" />
+            <Messages v-if="showConversation && selectedConversation" :selected-conversation="selectedConversation" @update:selected-conversation="handleConversationClick" @view-post="handleViewPost" @chat-deleted="handleChatDeleted" @open-media="handleOpenMedia" @back-chatlist="handleBackChatList" />
             <transition name="fade">
                 <div v-if="showMediaPreview" class="mediapreview-overlay modal-container">
                     <div class="media-preview modal-inner">
@@ -274,7 +284,7 @@ const handleOpenMedia = (mediaUrl: string) => {
     top: 0;
     left: 0;
     width: 100%;
-    min-width: 800px;
+    /* min-width: 800px; */
     font-size: 16px;
 }
 button {
@@ -288,6 +298,10 @@ button {
     padding: 10px;
     border-radius: 10px;
     transition: .2s ease-in-out;
+    font-weight: bold;
+    font-size: 16px;
+}
+button span {
     font-weight: bold;
     font-size: 16px;
 }
@@ -310,7 +324,7 @@ button:hover {
     cursor: pointer;
 }
 .search-bar {
-    width: 5%;
+    width: 100px;
     height: 40px;
     background-color: #fff5;
     padding: 0 .8rem;
@@ -322,7 +336,7 @@ button:hover {
 }
 
 .search-bar:hover {
-    width: 20%;
+    width: 200px;
     background-color: #fff8;
     box-shadow: 0 .1rem .4rem #0002;
 }
@@ -340,7 +354,6 @@ button:hover {
     color: black;
     width: calc(100% - 40px);
     height: 100%;
-    padding: 0 .5rem .1rem .3rem;
     background-color: transparent;
     border: none;
     outline: none;
@@ -363,6 +376,9 @@ button:hover {
     border-radius: 10px;
     transition: .2s ease-in-out;
 }
+.profile p {
+    display: none;
+}
 .profile img {
     width: 30px;
     height: 30px;
@@ -374,5 +390,61 @@ button:hover {
     color: black;
     transition: .2s ease-in-out;
     cursor: pointer;
+}
+@media screen and (max-width: 1025px) {
+    .search-bar {
+        width: 50px;
+        padding: 0 .1rem;
+    }
+    .search-bar:hover {
+        width: 90px;
+    }
+    .search-bar svg {
+        padding: 0;
+    }
+    .search-bar:hover svg {
+        display: none;
+    }
+    .search-bar:hover input {
+        padding-left: 10px;
+    }
+}
+@media screen and (max-width: 950px) {
+    button span {
+        display: none;
+    }
+    .search-bar:hover {
+        width: 150px;
+    }
+}
+@media screen and (max-width: 580px) {
+    .profile h3 {
+        display: none;
+        white-space: nowrap;
+    }
+    .profile p {
+        display: block;
+        font-size: 10px;
+    }
+    .search-bar:hover ~ .profile p {
+        display: none;
+    }
+    .logo img {
+        height: 50px;
+    }
+}
+@media screen and (max-width: 450px) {
+    .header {
+        padding: 10px 5px;
+    }
+    .logo {
+        margin-left: -5px;
+    }
+    .grid-view, .list-view {
+        display: none;
+    }
+    .search-bar:hover {
+        width: 100px;
+    }
 }
 </style>

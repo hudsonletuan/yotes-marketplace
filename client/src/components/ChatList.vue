@@ -167,7 +167,7 @@ socket.on('conversationDeleted', (deleteConversationId, deletePostId, myUnseenLe
 <template>
     <div>
         <div class="center">
-            <div class="contacts">
+            <div class="contacts chatlist-contacts">
                 <div class="contact-search">
                     <input type="text" placeholder="Search" v-model="searchInput">
                 </div>
@@ -381,5 +381,23 @@ body, html {
 .post-userstatus.offline .badge {
     color: white;
     background-color: #333;
+}
+@media screen and (max-width: 450px) {
+    .center {
+        right: 260px;
+        top: 321px;
+    }
+    .contacts {
+        width: 22rem;
+    }
+}
+@media screen and (max-width: 350px) {
+    .center {
+        right: 245px;
+        top: 321px;
+    }
+    .contacts {
+        width: 21rem;
+    }
 }
 </style>

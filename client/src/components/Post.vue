@@ -7,6 +7,8 @@ import FaSend from './svgs/FaSend.vue';
 import BiPencil from './svgs/BiPencil.vue';
 import BiTrash from './svgs/BiTrash.vue';
 import BiFlag from './svgs/BiFlag.vue';
+import FaShare from './svgs/FaShare.vue';
+import FaCopy from './svgs/FaCopy.vue';
 import Send from './svgs/Send.vue';
 import { useUserStatusStore } from '@/stores/userStatusStore';
 import { socket, updateUserStatus, handleUserStatusUpdate, handleDisconnect, markMessagesAsSeen } from '@/socket';
@@ -154,6 +156,25 @@ const confirmDelete = (postId: string) => {
     }
 };
 
+const isThisPost = ref('');
+const showFaShare = ref('');
+const sharePost = async (postId: string) => {
+    const postUrl = `${window.location.origin}/${postId}`;
+    try {
+        await navigator.clipboard.writeText(postUrl);
+        isThisPost.value = postId;
+        showFaShare.value = postId;
+        setTimeout(() => {
+            isThisPost.value = '';
+            setTimeout(() => {
+                showFaShare.value = '';
+            }, 300);
+        }, 1000);
+    } catch (error) {
+        //console.error('Failed to copy post URL:', error);
+    }
+};
+
 onMounted(() => {
     fetchPosts();
     const postContainer = document.querySelector('.post-container');
@@ -190,6 +211,7 @@ const scrollToBottom = (postId: string) => {
                 }
             }
         }, 100);
+        isLoadingChat.value[postId] = false;
     });
 };
 
@@ -204,7 +226,9 @@ const isLoadingChat = ref<{ [key: string]: boolean }>({}); // { postId: boolean 
 
 const togglePostChat = async (post: any) => {
     const postId = post._id;
-    isLoadingChat.value[postId] = true;
+    if (!postsWithOpenChat.some(postsWithOpenChat => postsWithOpenChat['postId'] === postId)) {
+        isLoadingChat.value[postId] = true;
+    }
     const postUserId = post.userId;
     const index = postsWithOpenChat.findIndex((chat: any) => chat.postId === postId);
     if (index !== -1) {
@@ -245,7 +269,7 @@ const togglePostChat = async (post: any) => {
     } catch (error) {
         //console.error('Failed to open chat:', error);
     } finally {
-        isLoadingChat.value[postId] = false;
+        
     }
 };
 
@@ -319,6 +343,7 @@ const sendMessage = (event: Event, postId: string, postUsernameCheck: string, po
             messageInput.value = '';
             scrollToBottom(postId);
         }
+        messageInput.style.height = '2.3rem';
     }
 };
 
@@ -477,32 +502,36 @@ const triggerFileInputClick = (postId: string) => {
 };
 
 const selectedMedia = ref<File[]>([]);
-const objectURLs = ref<string[]>([]);
 const ImageReady = ref(true);
 const handleFileInputChange = async (event: Event, postId: string, postUsernameCheck: string, postConversationId: string) => {
     ImageReady.value = false;
     scrollToBottom(postId);
     selectedMedia.value = [];
-    objectURLs.value = [];
-    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-    const newFiles = Array.from((event.target as HTMLInputElement).files as FileList);
+    const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
+    const newFilesOriginal = Array.from((event.target as HTMLInputElement).files as FileList);
+    const newFiles = newFilesOriginal.map((file) => {
+        const fileName = file.name.toLowerCase();
+        const fileExtension = fileName.split('.').pop();
+        const newFileName = fileName.replace(`.${fileExtension}`, `.${fileExtension?.toLowerCase()}`);
+        return new File([file], newFileName, { type: file.type });
+    });
     if (!newFiles.length){
         ImageReady.value = true;
         return;
     };
     const validFiles = newFiles.filter((file) => {
         const isValidType = (file.type.startsWith('image/') && ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(file.type.split('/')[1])) || 
-        (file.type.startsWith('video/') && ['mp4'].includes(file.type.split('/')[1]));
+        (file.type.startsWith('video/') && ['mp4', 'webm', 'avi', 'quicktime'].includes(file.type.split('/')[1]));
         return isValidType && file.size <= MAX_FILE_SIZE;
     });
     const heicFiles = newFiles.filter((file) => file.name.toLocaleLowerCase().endsWith('.heic') || file.name.toLocaleLowerCase().endsWith('.heif'));
     const invalidFiles = newFiles.filter((file) => file.size > MAX_FILE_SIZE);
     if (invalidFiles.length) {
-        alert(`The following files exceed the maximum file size of 5MB: ${invalidFiles.map((file) => file.name).join(', ')}`);
+        alert(`The following files exceed the maximum file size of 20MB: ${invalidFiles.map((file) => file.name).join(', ')}`);
     }
     if (!validFiles.length && !heicFiles.length) {
         ImageReady.value = true;
-        alert('Invalid file(s) selected. Only jpg, jpeg, png, heic/heif, and mp4 are supported.')
+        alert('Invalid file(s) selected. Please select images or videos only.')
         return;
     };
     if (heicFiles.length > 0) {
@@ -516,12 +545,10 @@ const handleFileInputChange = async (event: Event, postId: string, postUsernameC
                 .then((convertedBlob) => {
                     const convertedFile = new File([convertedBlob as BlobPart], file.name.replace(/\.heic$|\.heif$/i, '.jpeg'), { type: 'image/jpeg' });
                     selectedMedia.value.push(convertedFile);
-                    const objectURL = URL.createObjectURL(convertedFile);
-                    objectURLs.value.push(objectURL);
                     resolve(convertedFile);
                 })
                 .catch((error) => {
-                    console.error(error);
+                    //console.error(error);
                     reject(error);
                 });
             });
@@ -530,8 +557,6 @@ const handleFileInputChange = async (event: Event, postId: string, postUsernameC
     }
     const compressionTasks = validFiles.map((file) => {
         if (file.type.startsWith('video/')) {
-            const objectURL = URL.createObjectURL(file);
-            objectURLs.value.push(objectURL);
             selectedMedia.value.push(file);
             return Promise.resolve(file);
         } else {
@@ -541,12 +566,10 @@ const handleFileInputChange = async (event: Event, postId: string, postUsernameC
                     success(result) {
                         const compressedFiles = new File([result], file.name, { type: file.type });
                         selectedMedia.value.push(compressedFiles);
-                        const objectURL = URL.createObjectURL(compressedFiles);
-                        objectURLs.value.push(objectURL);
                         resolve(compressedFiles);
                     },
                     error(error) {
-                        console.error(error.message);
+                        //console.error(error.message);
                         reject(error);
                     },
                 });
@@ -555,12 +578,7 @@ const handleFileInputChange = async (event: Event, postId: string, postUsernameC
     });
 
     const compressedFiles = await Promise.all(compressionTasks);
-    // selectedMedia.value = validFiles;
 
-    // validFiles.forEach((file) => {
-    //     const objectURL = URL.createObjectURL(file);
-    //     objectURLs.value.push(objectURL);
-    // });
     const formData = new FormData();
     selectedMedia.value.forEach((file) => {
         formData.append('media', file);
@@ -607,7 +625,7 @@ const onMediaError = (event: Event, message: string) => {
                     <div class="post-user">
                         <img :src="post.userImg ? post.userImg : 'https://marketplace.tuanle.top/yotes-logo.png'" alt="profile" />
                         <div class="post-user-info">
-                            <h3 style="color: white;" @click="$emit('open-userpost', post.userId)">{{ post.username }}</h3>
+                            <h3 style="color: white;" @click="$emit('open-userpost', post.userId, 'userId')">{{ post.username }}</h3>
                             <h5 style="color: #D5D5D5;">{{ postModifiedDate(post) }}</h5>
                         </div>
                     </div>
@@ -621,6 +639,14 @@ const onMediaError = (event: Event, message: string) => {
                         <button class="btn-post-option btn-post-report" v-if="post.username !== currentUser && currentUser" title="Report" @click="$emit('open-report', post._id)">
                             <BiFlag />
                         </button>
+                        <button class="btn-post-option btn-post-share" v-if="showFaShare !== post._id && isThisPost !== post._id" title="Share" @click="sharePost(post._id)">
+                            <FaShare />
+                        </button>
+                        <Transition name="fade-icon">
+                            <button v-if="isThisPost === post._id" class="btn-post-option btn-post-copy" title="URL Copied">
+                                <FaCopy /> Link Copied
+                            </button>
+                        </Transition>
                     </div>
                 </div>
                 <div class="post-topic">
@@ -663,7 +689,7 @@ const onMediaError = (event: Event, message: string) => {
                     </div>
                     <div class="send-message" v-if="post.username !== currentUser && currentUserId">
                         <p v-if="isLoadingChat[post._id]" class="btn-message loader"></p>
-                        <p v-else-if="!postsWithOpenChat.some(postsWithOpenChat => postsWithOpenChat['postId'] === post._id)" class="btn-message" @click="togglePostChat(post)">Send Message 
+                        <p v-else-if="!postsWithOpenChat.some(postsWithOpenChat => postsWithOpenChat['postId'] === post._id)" class="btn-message" @click="togglePostChat(post)"><span>Send Message </span>
                             <Send />
                         </p>
                         <p v-else class="btn-message" @click="togglePostChat(post)">Close Message</p>
@@ -678,8 +704,8 @@ const onMediaError = (event: Event, message: string) => {
                                 <div class="post-user-img" :style="`background-image: url(${post.userImg});`"></div>
                                 <div class="post-username">{{ post.username }}</div>
                                 <div v-if="userStatusStore.userStatuses[post.userId]">
-                                    <div v-if="userStatusStore.userStatuses[post.userId].status === 'Online'" class="post-userstatus online">&#128905; {{ userStatusStore.userStatuses[post.userId].status }}</div>
-                                    <div v-else-if="userStatusStore.userStatuses[post.userId].status === 'Offline'" class="post-userstatus offline">&#128905; {{ timeAgo(userStatusStore.userStatuses[post.userId].lastActive) }}</div>
+                                    <div v-if="userStatusStore.userStatuses[post.userId].status === 'Online'" class="post-userstatus online">&#11044; {{ userStatusStore.userStatuses[post.userId].status }}</div>
+                                    <div v-else-if="userStatusStore.userStatuses[post.userId].status === 'Offline'" class="post-userstatus offline">&#11044; {{ timeAgo(userStatusStore.userStatuses[post.userId].lastActive) }}</div>
                                 </div>
                             </div>
                             <div class="delete-this-chat">
@@ -729,7 +755,7 @@ const onMediaError = (event: Event, message: string) => {
                         </div>
                         <div class="input">
                             <FaCamera @click="triggerFileInputClick(post._id)" />
-                            <input :id="`file-input-${post._id}`" type="file" accept="image/*, video/mp4" multiple @change="handleFileInputChange($event, post._id, post.username, postChatDict[post._id][0])" style="display: none" />
+                            <input :id="`file-input-${post._id}`" type="file" accept="image/*, image/heic, image/heif, video/mp4" multiple @change="handleFileInputChange($event, post._id, post.username, postChatDict[post._id][0])" style="display: none" />
                             <FaLaugh @click="toggleEmojiPicker(post._id)" />
                             <textarea :id="`messageInput-${post._id}`" placeholder="Type your message here!" @input="resizeTextarea" @keydown.enter="sendMessage($event, post._id, post.username, postChatDict[post._id][0])"></textarea>
                             <FaSend @click="sendMessage($event, post._id, post.username, postChatDict[post._id][0])" />
@@ -811,6 +837,19 @@ const onMediaError = (event: Event, message: string) => {
     color: #ff8c00;
     transition: color 0.3s ease;
 }
+.btn-post-share:hover {
+    color: #23ffed;
+    transition: color 0.3s ease;
+}
+.fade-icon-enter-active,
+.fade-icon-leave-active {
+    transition: opacity 0.3s;
+}
+
+.fade-icon-enter-from,
+.fade-icon-leave-to {
+    opacity: 0;
+}
 .post-user {
     display: flex;
     align-items: center;
@@ -871,7 +910,7 @@ const onMediaError = (event: Event, message: string) => {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-top: 10px;
+    margin-top: 15px;
     gap: 20px;
 }
 .post-detail-price {
@@ -898,6 +937,7 @@ const onMediaError = (event: Event, message: string) => {
     color: white;
     font-weight: bold;
     padding: 5px;
+    margin-top: -10px;
     border: none;
     border-radius: 10px;
     cursor: pointer;
@@ -906,6 +946,9 @@ const onMediaError = (event: Event, message: string) => {
 .btn-message:hover {
     background-color: #0f5aff;
     transition: background-color 0.3s ease;
+}
+.btn-message span {
+    font-weight: bold;
 }
 .btn-message svg {
     margin-bottom: -5px;
@@ -1262,7 +1305,7 @@ const onMediaError = (event: Event, message: string) => {
     overflow-y: auto;
     resize: vertical;
 }
-.chat .input textarea:placeholder {
+.chat .input textarea::placeholder {
     color: #999;
 }
 .seen {
@@ -1299,6 +1342,190 @@ const onMediaError = (event: Event, message: string) => {
     25% {
         transform: translate(0, -0.25rem) scale(1);
         opacity: 1;
+    }
+}
+
+@media screen and (max-height: 800px) and (min-width: 600px) {
+    .post-head {
+        margin-bottom: 3px;
+    }
+    .post-topic p {
+        font-size: 16px;
+    }
+    .post-caption p {
+        font-size: 14px;
+    }
+    .media-post img, .media-post video {
+        height: 180px;
+    }
+    .media-post-item {
+        min-height: 180px;
+    }
+    .post-detail-price, .post-detail-status, .post-detail-location {
+        margin-top: -10px;
+        font-size: 14px;
+    }
+    .post:last-child {
+        margin-bottom: 2em;
+    }
+    .loading {
+        margin-bottom: 2em;
+    }
+
+    .chat {
+        height: 30rem;
+    }
+    .scroll-down-button {
+        top: 5rem;
+    }
+    .message-media-items img, .message-media-items video {
+        height: 200px;
+    }
+}
+@media screen and (max-height: 950px) and (max-width: 600px) {
+    .post-head {
+        margin-bottom: 3px;
+    }
+    .post-topic p {
+        font-size: 16px;
+    }
+    .post-caption p {
+        font-size: 14px;
+    }
+    .media-post img, .media-post video {
+        height: 180px;
+    }
+    .media-post-item {
+        min-height: 180px;
+    }
+    .post-detail-price, .post-detail-status, .post-detail-location {
+        margin-top: -10px;
+        font-size: 14px;
+    }
+    .post:last-child {
+        margin-bottom: 7em;
+    }
+    .loading {
+        margin-bottom: 7em;
+    }
+
+    .chat {
+        height: 30rem;
+    }
+    .scroll-down-button {
+        top: 5rem;
+    }
+    .message-media-items img, .message-media-items video {
+        height: 200px;
+    }
+}
+@media screen and (max-width: 1020px) {
+    .just-post {
+        width: 500px;
+    }
+    .chat {
+        height: 28rem;
+    }
+}
+@media screen and (max-width: 920px) {
+    .just-post {
+        width: 450px;
+    }
+    .chat {
+        height: 26rem;
+    }  
+}
+@media screen and (max-width: 870px) {
+    .post {
+        display: flex;
+        flex-direction: column;
+    }
+    .just-post {
+        width: 700px;
+    }
+    .message-media-items img, .message-media-items video {
+        height: 200px;
+    }
+}
+@media screen and (max-width: 725px) {
+    .just-post {
+        width: 500px;
+    }
+}
+@media screen and (max-width: 600px) {
+    .just-post {
+        width: 400px;
+    }
+    .btn-message span {
+        display: none;
+    }
+    .chat {
+        height: 28rem;
+    }
+
+    .post-user-info {
+        font-size: 12px;
+        margin-left: -5px;
+    }
+    .post-head {
+        margin-bottom: 3px;
+    }
+    .post-topic p {
+        font-size: 14px;
+    }
+    .post-caption p {
+        font-size: 12px;
+    }
+    .media-post img, .media-post video {
+        height: 150px;
+    }
+    .media-post-item {
+        min-height: 150px;
+    }
+    .post-details {
+        gap: 5px;
+    }
+    .post-detail-price, .post-detail-status, .post-detail-location {
+        margin-top: -10px;
+        font-size: 10px;
+    }
+    .btn-message {
+        padding: 1px 6px 3px 6px;
+    }
+    .btn-message svg {
+        height: 18px;
+    }
+    .messages .message {
+        font-size: 12px;
+    }
+    .chat .input textarea {
+        font-size: 12px;
+    }
+    .chat .input textarea::placeholder {
+        font-size: 9px;
+        padding-top: 3px;
+    }
+}
+@media screen and (max-width: 500px) {
+    .post {
+        width: 400px;
+    }
+    .just-post {
+        width: 400px;
+    }
+}
+@media screen and (max-width: 400px) {
+    .just-post {
+        width: 350px;
+    }
+}
+@media screen and (max-width: 350px) {
+    .just-post {
+        width: 330px;
+    }
+    .chat {
+        height: 24rem;
+        width: 20rem;
     }
 }
 </style>

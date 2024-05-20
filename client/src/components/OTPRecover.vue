@@ -126,7 +126,7 @@ const resetPassword = async () => {
             alert((error as any).response.data.message);
         } else {
             alert('Password reset failed');
-            console.error('Password reset failed:', error);
+            //console.error('Password reset failed:', error);
         }
     }
 };
@@ -167,7 +167,7 @@ const recoverOTP = async () => {
             alert((error as any).response.data.message);
         } else {
             alert('Request OTP failed');
-            console.error('Request OTP failed:', error);
+            //console.error('Request OTP failed:', error);
         }
     }
 };
@@ -339,4 +339,12 @@ function submit() {
     background: #c74d4d !important;
 }
 
+@media screen and (max-width: 650px) {
+    .otp-verify-container {
+        width: 17rem;
+    }
+    .timeCount, .timeEnd {
+        font-size: 12px;
+    }
+}
 </style>

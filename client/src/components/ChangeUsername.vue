@@ -58,7 +58,7 @@ const changeUsername = async () => {
             alert((error as any).response.data.message);
         } else {
             alert('Username change failed');
-            console.error('Username change failed:', error);
+            //console.error('Username change failed:', error);
         }
     }
 };

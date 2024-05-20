@@ -116,7 +116,7 @@ const verifyOTP = async () => {
             enableInputs();
         } else {
             alert('Verify OTP failed');
-            console.error('Verify OTP failed:', error);
+            //console.error('Verify OTP failed:', error);
             enableInputs();
         }
     }
@@ -143,7 +143,7 @@ const resendOTP = async () => {
             alert((error as any).response.data.message);
         } else {
             alert('Resend OTP failed');
-            console.error('Resend OTP failed:', error);
+            //console.error('Resend OTP failed:', error);
         }
     }
 };
@@ -252,5 +252,14 @@ function submit() {
 }
 .close-btn:hover {
     background: #8f3434 !important;
+}
+
+@media screen and (max-width: 650px) {
+    .otp-verify-container {
+        width: 17rem;
+    }
+    .timeCount, .timeEnd {
+        font-size: 12px;
+    }
 }
 </style>

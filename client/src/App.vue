@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import Header from '@/components/Header.vue';
 import Post from './components/Post.vue';
 import UserSign from './components/UserSign.vue';
@@ -14,6 +14,7 @@ import NewPost from './components/NewPost.vue';
 import EditPost from './components/EditPost.vue';
 import MediaPreview from './components/MediaPreview.vue';
 import Report from './components/Report.vue';
+import Footer from './components/Footer.vue';
 
 const userId = computed(() => localStorage.getItem('userId'));
 
@@ -61,8 +62,10 @@ const handleOpenChangePassword = (userId: string) => {
 };
 
 let searchInputValueSet = ref<string>('');
-const handleSearch = (searchInputValue: string) => {
+let searchCategorySet = ref<string>('');
+const handleSearch = (searchInputValue: string, searchCategory: string) => {
   searchInputValueSet.value = searchInputValue;
+  searchCategorySet.value = searchCategory;
   if (searchInputValueSet.value) {
     showSearchPost.value = true;
   }
@@ -70,7 +73,24 @@ const handleSearch = (searchInputValue: string) => {
 const handleCloseSearch = () => {
   showSearchPost.value = false;
   searchInputValueSet.value = '';
+  searchCategorySet.value = '';
 };
+
+const handleShareLink = () => {
+  const currentPath = window.location.pathname;
+  const postId = currentPath.split('/').pop();
+
+  if (postId) {
+    searchInputValueSet.value = postId;
+    handleSearch(postId, "postId");
+    const newPath = currentPath.substring(0, currentPath.lastIndexOf('/') + 1);
+    history.pushState({}, '', newPath);
+  }
+};
+
+onMounted(() => {
+  handleShareLink();
+});
 
 let emailSignUp = ref<string>('');
 let usernameSignUp = ref<string>('');
@@ -103,7 +123,7 @@ const appConfig = {
     <transition name="fade">
       <div v-if="showSearchPost" class="search-post-overlay modal-container">
         <div class="search-post modal-inner">
-          <SearchPost :searchInputValue="searchInputValueSet" @close-searchpost="handleCloseSearch" @open-editpost="handleOpenEditPost" @open-userpost="handleSearch" @open-media="handleOpenMedia" @open-report="handleShowReport" />
+          <SearchPost :searchInputValue="searchInputValueSet" :searchCategory="searchCategorySet" @close-searchpost="handleCloseSearch" @open-editpost="handleOpenEditPost" @open-userpost="handleSearch" @open-media="handleOpenMedia" @open-report="handleShowReport" />
         </div>
       </div>
     </transition>
@@ -171,8 +191,9 @@ const appConfig = {
         </div>
       </div>
     </transition>
+    <Footer class="footer-section" />
   </div>
-  <ActivityTracker />
+  <ActivityTracker class="" />
 </template>
 
 <style scoped>
@@ -203,9 +224,11 @@ template {
   padding: 20px;
   border-radius: 10px;
   width: 100%;
-  min-width: 800px;
 }
 .header-section {
+  z-index: 100;
+}
+.footer-section {
   z-index: 100;
 }
 .video-compress {
@@ -249,5 +272,26 @@ template {
 }
 .fade-enter-from, .fade-leave-to {
   opacity: 0;
+}
+
+@media screen and (max-height: 800px) and (min-width: 600px) {
+    .profile {
+        height: 40vh;
+        display: flex;
+    }
+}
+@media screen and (max-width: 850px){
+    .report-inner {
+        width: 80%;
+    }
+}
+@media screen and (max-width: 575px){
+    .report-inner {
+        width: 80%;
+    }
+    .button-group {
+        display: flex;
+        flex-direction: column;
+    }
 }
 </style>

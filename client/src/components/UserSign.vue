@@ -47,7 +47,7 @@ const loginUser = async () => {
             alert((error as any).response.data.message);
         } else {
             alert('Login failed');
-            console.error('Login failed:', error);
+            //console.error('Login failed:', error);
         }
     }
 };
@@ -106,7 +106,7 @@ const requestOTP = async () => {
             alert((error as any).response.data.message);
         } else {
             alert('OTP request failed');
-            console.error('OTP request failed:', error);
+            //console.error('OTP request failed:', error);
         }
     }
 };
@@ -271,5 +271,11 @@ button:hover{
 }
 .close-btn:hover {
     background-color: rgba(113, 113, 113, 0.5);
+}
+
+@media screen and (max-width: 650px) {
+    .sign-backdrop {
+        width: 20rem;
+    }
 }
 </style>

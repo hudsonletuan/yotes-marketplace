@@ -73,7 +73,7 @@ const handleImageSubmit = async () => {
                 alert((error as any).response.data.message);
             } else {
                 alert('Profile image update failed');
-                console.error('Profile image update failed:', error);
+                //console.error('Profile image update failed:', error);
             }
         }
     }
@@ -89,7 +89,7 @@ const handleImageSubmit = async () => {
             </div>
             <div class="change-image-container">
                 <input type="file" class="change-image-input" id="imageFile" ref="imageInput" name="imageFile" 
-                accept="image/jpg, image/jpeg, image/png, image/gif, image/bmp, image/webp" @change="handleImageChange" hidden/>
+                accept="image/jpg, image/jpeg, image/png, image/gif, image/bmp, image/webp, image/heic, image/heif" @change="handleImageChange" hidden/>
                 <input type="button" class="btn change-image-btn" id="imageBtn" @click="handleImageClick" value="Upload Your Image" />
             </div>
             <button v-if="selectedImage" class="btn change-image-submit" @click="handleImageSubmit">Update Image</button>
@@ -99,7 +99,7 @@ const handleImageSubmit = async () => {
                 <h2>{{ username }}</h2>
                 <h4><i>{{ userEmail!.endsWith('@yotes.collegeofidaho.edu') ? 'Student' : userEmail!.endsWith('@collegeofidaho.edu') ? 'Staff' : '' }}</i></h4>
                 <p>{{ userEmail }}</p>
-                <p>Posts: 0</p>
+                <!-- <p>Posts: 0</p> -->
             </div>
             <br />
             <div class="buttons-container">
@@ -213,5 +213,30 @@ const handleImageSubmit = async () => {
 }
 .close-btn:hover {
     background-color: #e30000d2;
+}
+
+@media screen and (max-width: 650px) {
+    .profile-container {
+        flex-direction: column;
+        gap: 10px;
+    }
+}
+@media screen and (max-width: 350px) {
+    .profile-container {
+        width: 16rem;
+    }
+}
+@media screen and (max-height: 650px) {
+    .profile-image img {
+        height: 150px;
+        width: 150px;
+        margin-top: -10px;
+    }
+    .right-card {
+        padding: 5px 20px;
+    }
+    .right-card .buttons-container {
+        margin-top: -15px
+    }
 }
 </style>

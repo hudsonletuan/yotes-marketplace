@@ -13,6 +13,9 @@ import apiRouter from './routes/api';
 import User from './models/userModel';
 import Post from './models/postModel';
 import Conversation from './models/conversationModel';
+// import ffmpegPath from '@ffmpeg-installer/ffmpeg';
+// import ffmpeg from 'fluent-ffmpeg';
+// ffmpeg.setFfmpegPath(ffmpegPath.path);
 
 const app = express();
 app.use(cors());
@@ -26,9 +29,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 const connectDB = async () => {
     try {
         await mongoose.connect(uri);
-        console.log('MongoDB connected');
+        // console.log('MongoDB connected');
     } catch (error) {
-        console.log(error);
+        // console.log(error);
     }
 };
 connectDB();
@@ -42,6 +45,57 @@ app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
+
+// const command = ffmpeg("../public/videotest.avi")
+//     .videoCodec('libx264')
+//     .audioCodec('libmp3lame')
+//     .format('mp4');
+
+// command.clone()
+//   .size('320x200')
+//   .save('../public/output-small.mp4');
+
+// // Create a clone to save a medium resized version
+// command.clone()
+//   .size('640x400')
+//   .save('../public/output-medium.mp4');
+
+// // Save a converted version with the original size
+// command.save('../public/output-original-size.mp4');
+
+// const tryFFmpeg = async () => {
+//     try {
+//         // Dynamically construct the path to the input video file
+//         const inputFilePath = 'D:/COMPUTERSCIENCE/PROJECTS/Yotes/market-place/server/src/testvideo.mp4';
+
+//         await ffmpeg(inputFilePath)
+//            .videoCodec('libx264')
+//            .audioCodec('libmp3lame')
+//            .format('mp4')
+//            .size('320x200')
+//            .save(path.join(__dirname, '..', 'output-small.mp4'))
+//            .on('error', function(err, stdout, stderr) {
+//                 if (err) {
+//                     console.log(err.message);
+//                     console.log("stdout:\n" + stdout);
+//                     console.log("stderr:\n" + stderr);
+//                 }
+//             });
+//         console.log('FFmpeg success');
+//     } catch (error) {
+//         console.log(error);
+//     }
+// }
+
+// tryFFmpeg();
+
+// const command = ffmpeg("videotest.avi")
+//     .videoCodec('libx264')
+//     .audioCodec('libmp3lame')
+//     .format('mp4');
+
+// command.clone()
+//   .size('320x200');
 const server = createServer(app);
 
 const io = new Server(server, {
@@ -87,7 +141,7 @@ io.on('connection', (socket) => {
                 // console.log('User not found');
             }
         } catch (error) {
-            console.log(error);
+            // console.log(error);
         }
     });
     socket.on('fetchChatHistory', async (conversationId) => {
@@ -99,7 +153,7 @@ io.on('connection', (socket) => {
                 // console.log('Conversation not found');
             }
         } catch (error) {
-            console.log(error);
+            // console.log(error);
         }
     });
     socket.on('fetchChatList', async (userId) => {
@@ -112,7 +166,7 @@ io.on('connection', (socket) => {
                 // console.log('Conversations not found');
             }
         } catch (error) {
-            console.log(error);
+            // console.log(error);
         }
     });
     socket.on('sendMessage', async (data) => {
@@ -143,7 +197,7 @@ io.on('connection', (socket) => {
                 // console.log('Conversation not found');
             }
         } catch (error) {
-            console.log(error);
+            // console.log(error);
         }
     });
     socket.on('joinConversation', (conversationId) => {
@@ -166,7 +220,7 @@ io.on('connection', (socket) => {
                 // console.log('Conversation not found');
             }
         } catch (error) {
-            console.log(error);
+            // console.log(error);
         }
     });
     socket.on('countUnseenMessages', async (userId) => {
@@ -182,7 +236,7 @@ io.on('connection', (socket) => {
             });
             socket.emit('unseenMessagesTotal', count);
         } catch (error) {
-            console.log(error);
+            // console.log(error);
         }
     });
 
@@ -221,7 +275,7 @@ io.on('connection', (socket) => {
                 io.to(clientUser.socketId).emit('conversationDeleted', conversationId, postId, totalClientUnseenMessages);
             }
         } catch (error) {
-            console.log(error);
+            // console.log(error);
         }
     };
 
@@ -233,7 +287,8 @@ io.on('connection', (socket) => {
             const post = await Post.findById(postId);
             if (!post) {
                 // return res.status(404).json({ message: 'Post not found' });
-                return console.log('Post not found');
+                // return console.log('Post not found');
+                return;
             }
             const mediaUrls = post.versions.flatMap((version) => version.uploaded.map((file) => file.media));
             const deletePromises = mediaUrls.map((mediaUrl) => {
@@ -259,11 +314,11 @@ io.on('connection', (socket) => {
             io.emit('postDeleted', postId, userId); // broadcast to all connected clients
         } catch (error) {
             // res.status(500).json({ message: 'Error deleting post', error });
-            console.log(error);
+            //console.log(error);
         }
     });
 });
 
 server.listen(port, () => {
-    console.log(`Socket.io server is running on port ${port}`);
+    // console.log(`Socket.io server is running on port ${port}`);
 });

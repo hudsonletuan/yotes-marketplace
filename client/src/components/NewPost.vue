@@ -5,15 +5,24 @@ import Compressor from 'compressorjs';
 import heic2any from 'heic2any';
 
 const emit = defineEmits(['close-newpost', 'post-created']);
-const closeNewPost = () => {
-    emit('close-newpost');
-};
+
 const username = computed(() => localStorage.getItem('username'));
 const userImg = computed(() => localStorage.getItem('userImg'));
 const userId = computed(() => localStorage.getItem('userId'));
 
-const selectedMedia = ref<File[]>([]);
-const objectURLs = ref<string[]>([]);
+interface MediaItem {
+    key: string;
+    src: string;
+    type: string;
+}
+interface ImageItem {
+    key: string;
+    imageFile: File;
+}
+
+const selectedImages = ref<ImageItem[]>([]);
+const originalVideos = ref<MediaItem[]>([]);
+const selectedMedia = ref<MediaItem[]>([]);
 const hoverIndex = ref(-1);
 const topic = ref('');
 const caption = ref('');
@@ -25,25 +34,31 @@ const selectedStatus = ref('Available');
 const uploadingImages = ref(false);
 const handleMediaChange = async (event: Event) => {
     uploadingImages.value = true;
-    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-    const newFiles = Array.from((event.target as HTMLInputElement).files as FileList);
-    if (!newFiles.length){
-        uploadingImages.value = true;
+    const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
+    const newFilesOriginal = Array.from((event.target as HTMLInputElement).files as FileList);
+    if (!newFilesOriginal.length){
+        uploadingImages.value = false;
         return;
     };
+    const newFiles = newFilesOriginal.map((file) => {
+        const fileName = file.name.toLowerCase();
+        const fileExtension = fileName.split('.').pop();
+        const newFileName = fileName.replace(`.${fileExtension}`, `.${fileExtension?.toLowerCase()}`);
+        return new File([file], newFileName, { type: file.type });
+    });
     const validFiles = newFiles.filter((file) => {
         const isValidType = (file.type.startsWith('image/') && ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(file.type.split('/')[1])) || 
-        (file.type.startsWith('video/') && ['mp4'].includes(file.type.split('/')[1]));
+        (file.type.startsWith('video/') && ['mp4', 'webm', 'avi', 'quicktime'].includes(file.type.split('/')[1]));
         return isValidType && file.size <= MAX_FILE_SIZE;
     });
     const heicFiles = newFiles.filter((file) => file.name.toLocaleLowerCase().endsWith('.heic') || file.name.toLocaleLowerCase().endsWith('.heif'));
     const invalidFiles = newFiles.filter((file) => file.size > MAX_FILE_SIZE);
     if (invalidFiles.length) {
-        alert(`The following files exceed the maximum file size of 5MB: ${invalidFiles.map((file) => file.name).join(', ')}`);
+        alert(`The following files exceed the maximum file size of 20MB: ${invalidFiles.map((file) => file.name).join(', ')}`);
     }
     if (!validFiles.length && !heicFiles.length) {
         uploadingImages.value = false;
-        alert('Invalid file(s) selected. Only jpg, jpeg, png, heic/heif, and mp4 are supported.')
+        alert('Invalid file(s) selected. Please select images or videos only.')
         return;
     };
     if (heicFiles.length > 0) {
@@ -55,52 +70,68 @@ const handleMediaChange = async (event: Event) => {
             })
             .then((convertedBlob) => {
                 const convertedFile = new File([convertedBlob as BlobPart], file.name.replace(/\.heic$|\.heif$/i, '.jpeg'), { type: 'image/jpeg' });
-                selectedMedia.value.push(convertedFile);
                 const objectURL = URL.createObjectURL(convertedFile);
-                objectURLs.value.push(objectURL);
+                const key = `${convertedFile.name}${convertedFile.name.split('.').pop()}`;
+                selectedMedia.value.push({ key, src: objectURL, type: 'image/jpeg' });
+                selectedImages.value.push({ key, imageFile: convertedFile });
             })
             .catch((error) => {
-                console.error(error);
+                //console.error(error);
             });
         });
         await Promise.all(conversionPromises);
     }
+    const videoFiles = validFiles.filter((file) => file.type.startsWith('video/'));
+    if (videoFiles.length > 0) {
+        const formData = new FormData();
+        formData.append('userId', userId.value ? userId.value : '');
+        formData.append('username', username.value ? username.value : '');
+        videoFiles.map((file) => {
+            formData.append('media', file);
+        });
+        const response = await axios.post('/api/movtomp4', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        });
+        const convertedFiles = response.data.media;
+        convertedFiles.forEach((file: any) => {
+            const key = file.media;
+            selectedMedia.value.push({ key, src: file.media, type: 'video/mp4' });
+            originalVideos.value.push({ key, src: file.media, type: 'video/mp4' });
+        });
+    }
     validFiles.forEach((file) => {
-        if (file.type.startsWith('video/')) {
-            const objectURL = URL.createObjectURL(file);
-            objectURLs.value.push(objectURL);
-            selectedMedia.value.push(file);
-        } else {
+        if (file.type.startsWith('image/')) {
             new Compressor(file, {
                 quality: 0.3,
                 success(result) {
                     const compressedFiles = new File([result], file.name, { type: file.type });
-                    selectedMedia.value.push(compressedFiles);
                     const objectURL = URL.createObjectURL(compressedFiles);
-                    objectURLs.value.push(objectURL);
+                    const key = `${compressedFiles.name}${compressedFiles.name.split('.').pop()}`;
+                    selectedMedia.value.push({ key, src: objectURL, type: file.type });
+                    selectedImages.value.push({ key, imageFile: compressedFiles });
                 },
                 error(error) {
-                    console.error(error.message);
+                    //console.error(error.message);
                 },
             });
         }
     });
-
-    // selectedMedia.value = [...selectedMedia.value, ...compressedFiles];
-
-    // validFiles.forEach((file) => {
-    //     const objectURL = URL.createObjectURL(file);
-    //     objectURLs.value.push(objectURL);
-    // });
     uploadingImages.value = false;
 };
 
-const getObjectURL = (index: number) => objectURLs.value[index];
-
-const removeMedia = (index: number) => {
+const removeMedia = (key: string) => {
+    const index = selectedMedia.value.findIndex((item) => item.key === key);
+    const item = selectedMedia.value[index];
+    URL.revokeObjectURL(item.src);
     selectedMedia.value.splice(index, 1);
-    const objectURL = objectURLs.value.splice(index, 1)[0];
-    URL.revokeObjectURL(objectURL);
+    const indexImage = selectedImages.value.findIndex((item) => item.key === key);
+    if (indexImage !== -1) {
+        selectedImages.value.splice(indexImage, 1);
+    } else {
+        return;
+    }
 };
 
 const mediaItems = ref<HTMLDivElement | null>(null);
@@ -174,7 +205,17 @@ const postNewPost = async () => {
     }
     
     selectedMedia.value.forEach((file) => {
-        formData.append('media', file);
+        if (file.type.startsWith('image/')) {
+            formData.append('media', selectedImages.value.find((image) => image.key === file.key)?.imageFile as File);
+        } else if (file.type.startsWith('video/')) {
+            formData.append('selectedVideo', file.src);
+        }
+    });
+
+    originalVideos.value.forEach((file) => {
+        if (selectedMedia.value.findIndex((item) => item.src === file.src) === -1) {
+            formData.append('removedVideo', file.src);
+        }
     });
 
     const totalMediaFiles = selectedMedia.value.length;
@@ -194,8 +235,20 @@ const postNewPost = async () => {
         emit('post-created');
         window.location.reload();
     } catch (error) {
-        console.error(error);
+        //console.error(error);
     }
+};
+
+const closeNewPost = async () => {
+    if (uploadingImages.value) {
+        alert('Please wait for the media files to finish uploading');
+        return;
+    }
+    if (originalVideos.value.length) {
+        const videoUrls = originalVideos.value.map((video) => video.src);
+        await axios.post('/api/deletemedia', { videoUrls });
+    }
+    emit('close-newpost');
 };
 </script>
 
@@ -219,34 +272,38 @@ const postNewPost = async () => {
             <div class="media-preview">
                 <button class="nav-btn" @click="scrollMedia(-1)" :disabled="!selectedMedia.length || ($refs.mediaItems as HTMLDivElement).scrollLeft <= 0">&#10094;</button>
                 <div class="media-items" ref="mediaItems">
-                    <div v-for="(file, index) in selectedMedia" :key="`${index}-${file.lastModified}`" class="media-item-wrapper" @mouseover="hoverIndex = index" @mouseleave="hoverIndex = -1">
+                    <div v-for="(item, index) in selectedMedia" :key="`${item.key}`" class="media-item-wrapper" @mouseover="hoverIndex = index" @mouseleave="hoverIndex = -1">
                         <div class="media-item">
-                            <img v-if="(file as File).type.startsWith('image/')" :src="getObjectURL(index)" alt="Preview" />
-                            <video v-else-if="file.type.startsWith('video/')" controls>
-                                <source :src="getObjectURL(index)" :type="file.type">
+                            <img v-if="item.type.startsWith('image/')" :src="item.src" alt="Preview" />
+                            <video v-else-if="item.type.startsWith('video/')" controls>
+                                <source :src="item.src" type="video/mp4">
                                 Your browser does not support the video tag.
                             </video>
                         </div>
-                        <button class="remove-btn" @click="removeMedia(index)" :class="hoverIndex === index ? 'visible' : 'hidden'">&#10006;</button>
+                        <button class="remove-btn" @click="removeMedia(item.key)" :class="hoverIndex === index ? 'visible' : 'hidden'">&#10006;</button>
                     </div>
                 </div>
                 <button class="nav-btn" @click="scrollMedia(1)" :disabled="!selectedMedia.length || ($refs.mediaItems as HTMLElement).scrollLeft >= ($refs.mediaItems as HTMLElement).scrollWidth - ($refs.mediaItems as HTMLElement).clientWidth">&#10095;</button>
             </div>
             <div class="buttons">
                 <div class="sub-buttons-add">
-                    <label class="btn label-add-media" for="media-upload">Add Media</label>
-                    <input type="file" accept="image/*, video/mp4" id="media-upload" multiple style="display: none" @change="handleMediaChange" />
-                    <input class="add-location" type="text" placeholder="Add Location" v-model="location" />
-                    <div class="dropdown-container">
-                        <button class="btn btn-status" @click="showStatus = !showStatus"><span v-if="selectedStatus">{{ selectedStatus }}</span></button>
-                        <ul v-if="showStatus" class="dropdown">
-                            <li @click="selectStatus('Available')">Available</li>
-                            <li @click="selectStatus('Sold')">Sold</li>
-                            <li @click="selectStatus('Not Available')">Not Available</li>
-                            <li @click="selectStatus('Looking For...')">Looking For...</li>
-                        </ul>
+                    <div class="media-location">
+                        <label class="btn label-add-media" for="media-upload">Add Media</label>
+                        <input type="file" accept="image/*, image/heic, image/heif, video/*" id="media-upload" multiple style="display: none" @change="handleMediaChange" />
+                        <input class="add-location" type="text" placeholder="Add Location" v-model="location" />
                     </div>
-                    <input class="price" type="text" inputmode="decimal" v-model="formattedPrice" @keypress="handleKeyPress" placeholder="Price" />
+                    <div class="status-price">
+                        <div class="dropdown-container">
+                            <button class="btn btn-status" @click="showStatus = !showStatus"><span v-if="selectedStatus">{{ selectedStatus }}</span></button>
+                            <ul v-if="showStatus" class="dropdown">
+                                <li @click="selectStatus('Available')">Available</li>
+                                <li @click="selectStatus('Sold')">Sold</li>
+                                <li @click="selectStatus('Not Available')">Not Available</li>
+                                <li @click="selectStatus('Looking For...')">Looking For...</li>
+                            </ul>
+                        </div>
+                        <input class="price" type="text" inputmode="decimal" v-model="formattedPrice" @keypress="handleKeyPress" placeholder="Price" />
+                    </div>
                 </div>
                 <div class="sub-buttons-finish">
                     <button class="btn btn-close" @click="closeNewPost">Discard</button>
@@ -485,6 +542,9 @@ const postNewPost = async () => {
 .sub-buttons-add label, .btn-status span, .price {
     font-weight: bold;
 }
+.status-price {
+    display: flex;
+}
 .price:placeholder-shown {
     font-weight: normal;
 }
@@ -565,4 +625,90 @@ const postNewPost = async () => {
     background-color: #0066d2;
 }
 
+@media screen and (max-width: 690px) {
+    .new-post-backdrop, .new-post-container, .topic-input, .caption-input, .buttons {
+        width: 500px;
+    }
+    .media-preview img, .media-preview video {
+        height: 150px;
+    }
+    .sub-buttons-add {
+        white-space: nowrap;
+    }
+    .topic-input input {
+        font-size: 16px;
+    }
+    .caption-input textarea {
+        height: 5em;
+        font-size: 14px;
+    }
+    .sub-buttons-add .label-add-media, .sub-buttons-add span, .sub-buttons-add input, .sub-buttons-finish button {
+        font-size: 12px;
+    }
+    .add-location {
+        width: 100px;
+    }
+    .price {
+        width: 60px;
+    }
+    .media-items {
+        height: 170px;
+    }
+}
+@media screen and (max-width: 600px) {
+    .new-post-backdrop, .new-post-container, .topic-input, .caption-input, .buttons {
+        width: 400px;
+    }
+    .media-preview img, .media-preview video {
+        height: 120px;
+    }
+    .sub-buttons-add {
+        white-space: nowrap;
+    }
+    .media-location, .status-price {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        align-items: center;
+    }
+    .media-location .label-add-media, .media-location input, .status-price .btn-status, .status-price input {
+        text-align: center;
+        width: 98px;
+        padding: 5px 10px;
+    }
+    .media-items {
+        height: 140px;
+    }
+}
+@media screen and (max-width: 500px) {
+    .new-post-backdrop, .new-post-container, .topic-input, .caption-input, .buttons {
+        width: 300px;
+    }
+    .media-preview img, .media-preview video {
+        height: 100px;
+    }
+    .sub-buttons-add {
+        white-space: nowrap;
+    }
+    .sub-buttons-finish {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        align-items: center;
+    }
+    .media-location .label-add-media, .media-location input, .status-price .btn-status, .status-price input {
+        width: 98px;
+        padding: 5px 10px;
+    }
+    .btn-close, .btn-post {
+        width: 60px;
+        padding: 5px 10px;
+    }
+    .buttons {
+        align-items: center;
+    }
+    .media-items {
+        height: 110px;
+    }
+}
 </style>

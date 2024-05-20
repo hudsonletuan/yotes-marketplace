@@ -63,4 +63,14 @@ const isVideo = (fileUrl: string): boolean => {
     opacity: 1;
     transition: opacity 0.3s ease;
 }
+
+@media screen and (max-width: 800px) {
+    .media-preview {
+        width: 80vw;
+    }
+    .media-preview img, .media-preview video {
+        max-width: 80vw;
+    }
+    
+}
 </style>

@@ -48,38 +48,38 @@ const sendReport = async () => {
 
 <style scoped>
 input[type=text], textarea {
-  width: 100%;
-  padding: 12px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  box-sizing: border-box;
-  margin-top: 6px;
-  margin-bottom: 16px;
-  resize: vertical;
-  font-family: 'Open Sans', sans-serif;
-  font-size: 18px;
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box;
+    margin-top: 6px;
+    margin-bottom: 16px;
+    resize: vertical;
+    font-family: 'Open Sans', sans-serif;
+    font-size: 18px;
 }
 
-input[type=button] {
-  background-color: #8b48ff;
-  color: white;
-  padding: 12px 20px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background-color ease-in-out 0.2s;
+.button-group input {
+    background-color: #8b48ff;
+    color: white;
+    padding: 12px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color ease-in-out 0.2s;
 }
 
-input[type=button]:hover {
-  background-color: #5d00ff;
-  transition: background-color ease-in-out 0.2s;
+.button-group input:hover {
+    background-color: #5d00ff;
+    transition: background-color ease-in-out 0.2s;
 }
 
 .container {
-  border-radius: 5px;
-  background-color: #212529;
-  padding: 20px;
-  font-family: 'Open Sans', sans-serif;
+    border-radius: 5px;
+    background-color: #212529;
+    padding: 20px;
+    font-family: 'Open Sans', sans-serif;
 }
 .button-group {
     display: flex;
@@ -98,5 +98,16 @@ input[type=button]:hover {
 .button-group button:hover {
     background-color: #ff0000;
     transition: background-color ease-in-out 0.2s;
+}
+
+@media screen and (max-width: 575px){
+    .container textarea {
+        font-size: 12px;
+    }
+    .button-group {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+    }
 }
 </style>
