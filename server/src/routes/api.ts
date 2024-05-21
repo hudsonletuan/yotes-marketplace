@@ -421,24 +421,37 @@ router.post('/newpost', upload.array('media'), async (req, res) => {
         });
         const media = await Promise.all(mediaPromises);
         if (selectedVideo) {
-            selectedVideo.forEach((url) => {
-                media.push({ media: url });
-            });
+            if (Array.isArray(selectedVideo)) {
+                selectedVideo.forEach((url) => {
+                    media.push({ media: url });
+                });
+            } else {
+                media.push({ media: selectedVideo });
+            }
         }
         const newVersion = { userId, username, topic, caption, price, status, location, uploaded: media };
         const newPost = new Post({ userId, username, userImg, versions: [newVersion] });
         await newPost.save();
 
         if (removedVideo) {
-            const deletePromises = removedVideo.map((url) => {
-                const key = url.split('/').pop();
+            if (Array.isArray(removedVideo)) {
+                const deletePromises = removedVideo.map((url) => {
+                    const key = url.split('/').pop();
+                    const deleteParams = {
+                        Bucket: 'yotes-marketplace',
+                        Key: key,
+                    };
+                    return S3.send(new DeleteObjectCommand(deleteParams));
+                });
+                await Promise.all(deletePromises);
+            } else {
+                const key = removedVideo.split('/').pop();
                 const deleteParams = {
                     Bucket: 'yotes-marketplace',
                     Key: key,
                 };
-                return S3.send(new DeleteObjectCommand(deleteParams));
-            });
-            await Promise.all(deletePromises);
+                await S3.send(new DeleteObjectCommand(deleteParams));
+            }
         }
         res.status(201).json({ message: 'Post created successfully', post: newPost });
     } catch (error) {
@@ -460,30 +473,6 @@ router.get('/userposts', async (req, res) => {
     }
 });
 
-// router.delete('/deletepost/:id', async (req, res) => {
-//     const postId = req.params.id;
-//     try {
-//         const post = await Post.findById(postId);
-//         if (!post) {
-//             return res.status(404).json({ message: 'Post not found' });
-//         }
-//         const mediaUrls = post.versions.flatMap((version) => version.uploaded.map((file) => file.media));
-//         const deletePromises = mediaUrls.map((mediaUrl) => {
-//             const key = mediaUrl?.split('/').pop();
-//             const deleteParams = {
-//                 Bucket: 'yotes-marketplace',
-//                 Key: key,
-//             };
-//             return S3.send(new DeleteObjectCommand(deleteParams));
-//         });
-//         await Promise.all(deletePromises);
-//         await Post.findByIdAndDelete(postId);
-//         res.status(200).json({ message: 'Post deleted successfully' });
-//     } catch (error) {
-//         res.status(500).json({ message: 'Error deleting post', error });
-//     }
-// });
-
 router.put('/editpost/:id', upload.array('media'), async (req, res) => {
     try {
         const postId = req.params.id;
@@ -503,22 +492,47 @@ router.put('/editpost/:id', upload.array('media'), async (req, res) => {
             return { media: imgLocation };
         });
         const newMedia: { media?: string | null | undefined; }[] = await Promise.all(newMediaPromises);
-        const selectedUrlsArray = selectedUrls.map((url: string) => ({ media: url }));
-        const parsedRemovedMediaUrls = JSON.parse(removedMediaUrls);
-        const deletePromises = parsedRemovedMediaUrls.map((url) => {
-            const key = url.split('/').pop();
-            const deleteParams = {
-                Bucket: 'yotes-marketplace',
-                Key: key,
-            };
-            return S3.send(new DeleteObjectCommand(deleteParams));
-        });
+        
+        let selectedUrlsArray;
+        if (selectedUrls) {
+            if (Array.isArray(selectedUrls)) {
+                selectedUrlsArray = selectedUrls.map((url: string) => ({ media: url }));
+            } else {
+                selectedUrlsArray = [{ media: selectedUrls }];
+            }
+        };
 
-        const updatedPost = await Post.findByIdAndUpdate(postId, { userId, username, $push: { versions: { userId, username, topic, caption, price, status, location, uploaded: [...selectedUrlsArray, ...newMedia] } } }, { new: true });
+        if (JSON.parse(removedMediaUrls).length > 0) {
+            const parsedRemovedMediaUrls = JSON.parse(removedMediaUrls);
+            const deletePromises = parsedRemovedMediaUrls.map((url) => {
+                const key = url.split('/').pop();
+                const deleteParams = {
+                    Bucket: 'yotes-marketplace',
+                    Key: key,
+                };
+                return S3.send(new DeleteObjectCommand(deleteParams));
+            });
+            await Promise.all(deletePromises);
+        }
+
+        let updatedPost;
+        if (!selectedUrlsArray) {
+            if (newMedia.length === 0) {
+                updatedPost = await Post.findByIdAndUpdate(postId, { userId, username, $push: { versions: { userId, username, topic, caption, price, status, location, uploaded: [] } } }, { new: true });
+            } else {
+                updatedPost = await Post.findByIdAndUpdate(postId, { userId, username, $push: { versions: { userId, username, topic, caption, price, status, location, uploaded: newMedia } } }, { new: true });
+            }
+        } else {
+            if (newMedia.length === 0) {
+                updatedPost = await Post.findByIdAndUpdate(postId, { userId, username, $push: { versions: { userId, username, topic, caption, price, status, location, uploaded: selectedUrlsArray } } }, { new: true });
+            } else {
+                updatedPost = await Post.findByIdAndUpdate(postId, { userId, username, $push: { versions: { userId, username, topic, caption, price, status, location, uploaded: [...selectedUrlsArray, ...newMedia] } } }, { new: true });
+            }
+        }
+        
         if (!updatedPost) {
             return res.status(404).json({ message: 'Post not found' });
         } else {
-            await Promise.all(deletePromises);
             res.status(200).json({ message: 'Post updated successfully', post: updatedPost });
         }
     } catch (error) {

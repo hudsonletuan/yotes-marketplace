@@ -8,7 +8,7 @@ const username = computed(() => localStorage.getItem('username'));
 const userImg = computed(() => localStorage.getItem('userImg'));
 const userEmail = computed(() => localStorage.getItem('userEmail'));
 
-const emit = defineEmits(['open-changepassword', 'open-changeusername', 'close-profile']);
+const emit = defineEmits(['open-changepassword', 'open-changeusername', 'close-profile', 'open-instruction']);
 
 const handleLogout = () => {
     updateUserStatus('Offline');
@@ -95,6 +95,9 @@ const handleImageSubmit = async () => {
             <button v-if="selectedImage" class="btn change-image-submit" @click="handleImageSubmit">Update Image</button>
         </div>
         <div class="card right-card">
+            <div v-if="userId" @click="$emit('open-instruction')" class="instruction">
+                <p>Instruction</p>
+            </div>
             <div class="user-info">
                 <h2>{{ username }}</h2>
                 <h4><i>{{ userEmail!.endsWith('@yotes.collegeofidaho.edu') ? 'Student' : userEmail!.endsWith('@collegeofidaho.edu') ? 'Staff' : '' }}</i></h4>
@@ -213,6 +216,23 @@ const handleImageSubmit = async () => {
 }
 .close-btn:hover {
     background-color: #e30000d2;
+}
+
+.instruction {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    margin-top: -.5rem;
+    background-color: hsla(160, 100%, 37%, 1);
+    padding: 0rem .5rem;
+    border-radius: 1rem;
+    cursor: pointer;
+    transition: background-color .2s ease;
+}
+.instruction:hover {
+    background-color: hsla(160, 100%, 35%, 0.8);
+    transition: background-color .2s ease;
 }
 
 @media screen and (max-width: 650px) {

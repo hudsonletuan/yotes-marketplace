@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue';
-import { socket } from '@/socket';
 
 const userId = localStorage.getItem('userId');
 
@@ -18,7 +17,6 @@ const checkActivity = () => {
 };
 
 const updateActivity = () => {
-    // socket.emit('updateUserStatus', { userId, userStatus: 'Online' })
     localStorage.setItem('lastActive', Date.now().toString());
 };
 

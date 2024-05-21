@@ -15,6 +15,7 @@ import EditPost from './components/EditPost.vue';
 import MediaPreview from './components/MediaPreview.vue';
 import Report from './components/Report.vue';
 import Footer from './components/Footer.vue';
+import Instruction from './components/Instruction.vue';
 
 const userId = computed(() => localStorage.getItem('userId'));
 
@@ -29,6 +30,7 @@ const showNewPost = ref(false);
 const showEditPost = ref(false);
 const showMediaPreview = ref(false);
 const showReport = ref(false);
+const showInstruction = ref(false);
 
 let media = ref<any>({});
 const handleOpenMedia = (mediaData: any) => {
@@ -144,7 +146,7 @@ const appConfig = {
     <transition name="fade">
       <div v-if="showProfile" class="profile-overlay modal-container">
         <div class="profile modal-inner">
-          <Profile @close-profile="showProfile = false" @open-changeusername="handleOpenChangeUsername" @open-changepassword="handleOpenChangePassword" />
+          <Profile @close-profile="showProfile = false" @open-changeusername="handleOpenChangeUsername" @open-changepassword="handleOpenChangePassword" @open-instruction="showInstruction = true" />
         </div>
       </div>
     </transition>
@@ -191,7 +193,14 @@ const appConfig = {
         </div>
       </div>
     </transition>
-    <Footer class="footer-section" />
+    <transition name="fade">
+      <div v-if="showInstruction" class="instruction-overlay modal-container">
+        <div class="instruction-inner modal-inner">
+          <Instruction @close-instruction="showInstruction = false" />
+        </div>
+      </div>
+    </transition>
+    <Footer @open-instruction="showInstruction = true" class="footer-section" />
   </div>
   <ActivityTracker class="" />
 </template>
@@ -219,11 +228,14 @@ template {
   border-radius: 10px;
   max-width: 800px;
 }
-.report-inner {
+.report-inner, .instruction-inner {
   background-color: #212529;
   padding: 20px;
   border-radius: 10px;
   width: 100%;
+}
+.instruction-inner {
+  margin-bottom: 2rem;
 }
 .header-section {
   z-index: 100;
@@ -274,7 +286,7 @@ template {
   opacity: 0;
 }
 
-@media screen and (max-height: 800px) and (min-width: 600px) {
+@media screen and (max-height: 800px) and (min-width: 650px) {
     .profile {
         height: 40vh;
         display: flex;
@@ -283,6 +295,10 @@ template {
 @media screen and (max-width: 850px){
     .report-inner {
         width: 80%;
+    }
+    .instruction-inner {
+        width: 80%;
+    
     }
 }
 @media screen and (max-width: 575px){

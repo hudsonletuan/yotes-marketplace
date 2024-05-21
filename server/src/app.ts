@@ -292,6 +292,9 @@ io.on('connection', (socket) => {
             }
             const mediaUrls = post.versions.flatMap((version) => version.uploaded.map((file) => file.media));
             const deletePromises = mediaUrls.map((mediaUrl) => {
+                if (!mediaUrl) {
+                    return;
+                }
                 const key = mediaUrl?.split('/').pop();
                 const deleteParams = {
                     Bucket: 'yotes-marketplace',

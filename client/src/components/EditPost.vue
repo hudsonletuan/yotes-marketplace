@@ -49,12 +49,14 @@ const location = ref('');
 const price = ref<number | null>(null);
 const showStatus = ref(false);
 const selectedStatus = ref('Available');
-const originalMediaUrls: string[] = props.post.uploaded.map((media: { media: string }) => media.media);
+const originalMediaUrls: string[] = props.post.uploaded
+    .filter((media) => media.media)
+    .map((media) => media.media);
 
 const uploadingImages = ref(false);
 const handleMediaChange = async (event: Event) => {
     uploadingImages.value = true;
-    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+    const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
     const newFilesOriginal = Array.from((event.target as HTMLInputElement).files as FileList);
     const newFiles = newFilesOriginal.map((file) => {
         const fileName = file.name.toLowerCase();
@@ -74,7 +76,7 @@ const handleMediaChange = async (event: Event) => {
     const heicFiles = newFiles.filter((file) => file.name.toLocaleLowerCase().endsWith('.heic') || file.name.toLocaleLowerCase().endsWith('.heif'));
     const invalidFiles = newFiles.filter((file) => file.size > MAX_FILE_SIZE);
     if (invalidFiles.length) {
-        alert(`The following files exceed the maximum file size of 5MB: ${invalidFiles.map((file) => file.name).join(', ')}`);
+        alert(`The following files exceed the maximum file size of 20MB: ${invalidFiles.map((file) => file.name).join(', ')}`);
     }
     if (!validFiles.length && !heicFiles.length) {
         uploadingImages.value = false;
@@ -338,13 +340,13 @@ function getMimeType(url: string): string {
 
 const isImage = (fileUrl: string): boolean => {
     const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'blob'];
-    const fileExtension = fileUrl.split('.').pop()?.toLowerCase();
+    const fileExtension = fileUrl?.split('.').pop()?.toLowerCase();
     return imageExtensions.includes(fileExtension || '');
 };
 
 const isVideo = (fileUrl: string): boolean => {
     const videoExtensions = ['mp4'];
-    const fileExtension = fileUrl.split('.').pop()?.toLowerCase();
+    const fileExtension = fileUrl?.split('.').pop()?.toLowerCase();
     return videoExtensions.includes(fileExtension || '');
 };
 
@@ -368,13 +370,17 @@ onMounted(() => {
     selectedStatus.value = props.post.status;
 
     props.post.uploaded.forEach((file) => {
-        const key = file.media;
-        const objectURL = file.media;
-        if (isImage(objectURL)) {
-            const fileTypes = objectURL.split('.').pop()?.toLowerCase();
-            selectedMedia.value.push({ key, src: objectURL, type: `image/${fileTypes}` });
-        } else if (isVideo(objectURL)) {
-            selectedMedia.value.push({ key, src: objectURL, type: 'video/mp4' });
+        if (!file.media) {
+            return;
+        } else {
+            const key = file.media;
+            const objectURL = file.media;
+            if (isImage(objectURL)) {
+                const fileTypes = objectURL.split('.').pop()?.toLowerCase();
+                selectedMedia.value.push({ key, src: objectURL, type: `image/${fileTypes}` });
+            } else if (isVideo(objectURL)) {
+                selectedMedia.value.push({ key, src: objectURL, type: 'video/mp4' });
+            }
         }
     });
 });
@@ -424,7 +430,7 @@ onMounted(() => {
                 <div class="sub-buttons-add">
                     <div class="media-location">
                         <label class="btn label-add-media" for="media-upload">Add Media</label>
-                        <input type="file" accept="image/*, image/heic, image/heif, video/mp4" id="media-upload" multiple style="display: none" @change="handleMediaChange" />
+                        <input type="file" accept="image/*, image/heic, image/heif, video/*" id="media-upload" multiple style="display: none" @change="handleMediaChange" />
                         <input class="add-location" type="text" placeholder="Add Location" v-model="location" />
                     </div>
                     <div class="status-price">

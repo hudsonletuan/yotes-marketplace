@@ -24,7 +24,7 @@ const postVersionSchema = new mongoose.Schema({
             media: {
                 type: String,
             },
-        }
+        },
     ],
     createdAt: {
         type: Date,

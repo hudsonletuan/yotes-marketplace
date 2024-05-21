@@ -57,13 +57,13 @@ const toggleCaption = (post: any) => {
 
 const isImage = (fileUrl: string): boolean => {
     const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'blob'];
-    const fileExtension = fileUrl.split('.').pop()?.toLowerCase();
+    const fileExtension = fileUrl?.split('.').pop()?.toLowerCase();
     return imageExtensions.includes(fileExtension || '');
 };
 
 const isVideo = (fileUrl: string): boolean => {
     const videoExtensions = ['mp4'];
-    const fileExtension = fileUrl.split('.').pop()?.toLowerCase();
+    const fileExtension = fileUrl?.split('.').pop()?.toLowerCase();
     return videoExtensions.includes(fileExtension || '');
 };
 
@@ -665,7 +665,7 @@ const onMediaError = (event: Event, message: string) => {
                 <div class="media-post">
                     <button class="post-nav-btn" @click="scrollMedia(post._id, -1)">&#10094;</button>
                     <div class="media-post-items" :ref="el => mediaItems.set(post._id, el as HTMLElement)">
-                        <div v-for="(file, index) in post.uploaded" :key="index" class="media-post-item-wrapper">
+                        <div v-for="(file, index) in post.uploaded" :key="index" class="media-post-item-wrapper" v-if="post.uploaded.filter((media: any) => media.media).length">
                             <div class="media-post-item">
                                 <img @click="$emit('open-media', file.media)" v-if="isImage(file.media)" :src="file.media" alt="Post media" />
                                 <div @click.prevent="$emit('open-media', file.media)" v-else-if="isVideo(file.media)">
@@ -678,7 +678,7 @@ const onMediaError = (event: Event, message: string) => {
                 </div>
                 <div class="bottom-bar">
                     <div class="post-details">
-                        <p class="post-detail-price">{{ post.price ? '$' + post.price : 'Free' }}</p>
+                        <p class="post-detail-price">{{ post.price ? '$' + parseFloat(post.price).toFixed(2) : 'Free' }}</p>
                         <p class="post-detail-status" :class="{
                             'available': post.status === 'Available',
                             'sold': post.status === 'Sold',
@@ -1445,6 +1445,9 @@ const onMediaError = (event: Event, message: string) => {
     }
     .message-media-items img, .message-media-items video {
         height: 200px;
+    }
+    .emoji-picker {
+        right: 3rem;
     }
 }
 @media screen and (max-width: 725px) {
