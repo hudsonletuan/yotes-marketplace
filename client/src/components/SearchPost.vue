@@ -547,6 +547,7 @@ const sendMessage = (event: Event, postId: string, postUsernameCheck: string, po
 }
 .post-user-info {
     display: flex;
+    flex-direction: column;
     align-items: baseline;
 }
 .post-user img {
@@ -932,9 +933,6 @@ const sendMessage = (event: Event, postId: string, postUsernameCheck: string, po
 @media screen and (max-width: 431px) {
     .wrapper {
         margin-left: 0rem;
-    }
-    .post-user-info {
-        flex-direction: column;
     }
     .message-input input {
         height: 25px;
