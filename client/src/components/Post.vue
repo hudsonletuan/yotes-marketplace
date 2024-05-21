@@ -867,7 +867,7 @@ const onMediaError = (event: Event, message: string) => {
     object-fit: cover;
     border-radius: 50%;
 }
-.post-user h5, .post-user p {
+.post-user p {
     margin-left: 5px;
 }
 .post-user h3:hover {
