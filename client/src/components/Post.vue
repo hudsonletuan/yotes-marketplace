@@ -858,6 +858,7 @@ const onMediaError = (event: Event, message: string) => {
 }
 .post-user-info {
     display: flex;
+    flex-direction: column;
     align-items: baseline;
 }
 .post-user img {
